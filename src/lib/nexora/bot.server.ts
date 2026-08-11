@@ -215,7 +215,7 @@ async function enterTrade(u: NexoraUser, s: Settings) {
   };
   if (!st.plan || !st.draft) return startTrade(u, s);
   const b = await getBalance(u.id);
-  if (toCents(st.draft.amount) > toCents(b.balance)) return amountScreen(u, s);
+  if (toCents(st.draft.amount) > toCents(b.balance)) return tradeScreen(u, s);
 
   const now = Date.now();
   const { data: trade, error } = await db()
