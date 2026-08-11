@@ -244,6 +244,31 @@ function SettingRow({
   );
 }
 
+function Stat({
+  label,
+  value,
+  hint,
+  accent = false,
+}: {
+  label: string;
+  value: React.ReactNode;
+  hint?: string;
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-xl border p-4 ${
+        accent ? "border-primary/40 bg-primary/10" : "border-border bg-card"
+      }`}
+    >
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
+      {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-screen bg-background px-6 py-10 text-foreground">
