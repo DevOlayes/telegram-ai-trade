@@ -97,5 +97,8 @@ export async function runTick() {
     await qualifyReferral(trade.user_id);
   }
 
-  return { checked: trades?.length ?? 0, settled };
+  const { sweepFees } = await import("./payments.server");
+  const fees = await sweepFees();
+
+  return { checked: trades?.length ?? 0, settled, ...fees };
 }

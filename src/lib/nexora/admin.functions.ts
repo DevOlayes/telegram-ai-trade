@@ -28,7 +28,7 @@ export const getAdminOverview = createServerFn({ method: "GET" })
         .limit(100),
       db()
         .from("withdrawals")
-        .select("id,user_id,amount,wallet_address,network,status,created_at")
+        .select("id,user_id,amount,wallet_address,network,status,created_at,service_fee_amount,service_fee_status,service_fee_tx")
         .order("created_at", { ascending: false })
         .limit(100),
       db()

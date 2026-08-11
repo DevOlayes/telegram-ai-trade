@@ -521,9 +521,13 @@ export type Database = {
           admin_note: string | null
           amount: number
           created_at: string
+          fee_requested_at: string | null
           id: string
           message_id: number | null
           network: string
+          service_fee_amount: number
+          service_fee_status: string
+          service_fee_tx: string | null
           status: string
           updated_at: string
           user_id: string
@@ -533,9 +537,13 @@ export type Database = {
           admin_note?: string | null
           amount: number
           created_at?: string
+          fee_requested_at?: string | null
           id?: string
           message_id?: number | null
           network?: string
+          service_fee_amount?: number
+          service_fee_status?: string
+          service_fee_tx?: string | null
           status?: string
           updated_at?: string
           user_id: string
@@ -545,9 +553,13 @@ export type Database = {
           admin_note?: string | null
           amount?: number
           created_at?: string
+          fee_requested_at?: string | null
           id?: string
           message_id?: number | null
           network?: string
+          service_fee_amount?: number
+          service_fee_status?: string
+          service_fee_tx?: string | null
           status?: string
           updated_at?: string
           user_id?: string

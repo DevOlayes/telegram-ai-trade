@@ -142,13 +142,18 @@ function AdminPage() {
       )}
 
       {tab === "withdrawals" && (
-        <Table head={["User", "Amount", "Wallet", "Network", "Status", "When", ""]}>
+        <Table head={["User", "Amount", "Wallet", "Network", "Fee", "Fee status", "Status", "When", ""]}>
           {data!.withdrawals.map((w) => (
             <tr key={w.id} className="border-t border-border">
               <Td>{userLabel(w.user_id)}</Td>
               <Td>{money(w.amount)}</Td>
               <Td className="max-w-[160px] truncate">{w.wallet_address}</Td>
               <Td>{w.network}</Td>
+              <Td>{Number(w.service_fee_amount ?? 0) > 0 ? money(w.service_fee_amount) : "—"}</Td>
+              <Td className="max-w-[140px] truncate">
+                {w.service_fee_status}
+                {w.service_fee_tx ? ` · ${String(w.service_fee_tx).slice(0, 8)}…` : ""}
+              </Td>
               <Td>{w.status}</Td>
               <Td>{new Date(w.created_at).toLocaleString()}</Td>
               <Td>
