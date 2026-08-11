@@ -39,13 +39,37 @@ export const getAdminOverview = createServerFn({ method: "GET" })
       db().from("system_settings").select("key,value").order("key"),
     ]);
     const balances = await db().from("balances").select("user_id,balance,profit,referral_balance");
+
+    const since24 = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const [totalUsers, users24h, users7d, activeTrades, pendingWithdrawals] = await Promise.all([
+      db().from("users").select("id", { count: "exact", head: true }),
+      db().from("users").select("id", { count: "exact", head: true }).gte("created_at", since24),
+      db().from("users").select("id", { count: "exact", head: true }).gte("created_at", since7d),
+      db().from("trades").select("id", { count: "exact", head: true }).eq("status", "active"),
+      db().from("withdrawals").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    ]);
+
+    const bal = balances.data ?? [];
+    const sum = (k: "balance" | "profit") =>
+      bal.reduce((a, b) => a + Number((b as Record<string, unknown>)[k] ?? 0), 0);
+
     return {
       users: users.data ?? [],
       trades: trades.data ?? [],
       withdrawals: withdrawals.data ?? [],
       referrals: referrals.data ?? [],
       settings: settings.data ?? [],
-      balances: balances.data ?? [],
+      balances: bal,
+      stats: {
+        totalUsers: totalUsers.count ?? 0,
+        users24h: users24h.count ?? 0,
+        users7d: users7d.count ?? 0,
+        activeTrades: activeTrades.count ?? 0,
+        pendingWithdrawals: pendingWithdrawals.count ?? 0,
+        totalBalance: Number(sum("balance").toFixed(2)),
+        totalProfit: Number(sum("profit").toFixed(2)),
+      },
     };
   });
 
