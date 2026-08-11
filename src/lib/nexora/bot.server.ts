@@ -583,20 +583,24 @@ async function route(u: NexoraUser, s: Settings, action: string) {
     case "trade":
       return startTrade(u, s);
     case "setup":
-      return setupScreen(u, s, ((u.ui_state as { risk?: string }).risk ?? "balanced"));
-    case "risk":
-      return setupScreen(u, s, arg ?? "balanced");
     case "amount":
-      return amountScreen(u, s);
+      return tradeScreen(u, s);
     case "amt":
       return confirmScreen(u, s, Number(arg));
+    case "fee":
+      return feeScreen(u, s, arg);
+    case "feechk":
+      return checkFeeNow(u, s, arg);
+    case "fcancel":
+      return cancelWithdrawal(u, s, arg);
     case "custom":
       await setUiState(u.id, { ...(u.ui_state as object), flow: "custom_amount" });
       return renderScreen(
         u,
         "✏️ CUSTOM AMOUNT\n\nSend the amount you want to trade (e.g. 7.50).",
-        kb([[{ text: "⬅️ BACK", data: "amount" }]]),
+        kb([[{ text: "⬅️ BACK", data: "setup" }]]),
       );
+
     case "enter":
       return enterTrade(u, s);
     case "wallet":
