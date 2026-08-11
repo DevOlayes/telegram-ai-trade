@@ -102,86 +102,63 @@ async function startTrade(u: NexoraUser, s: Settings) {
     );
     return;
   }
-  await renderScreen(u, "🤖 NEXORA AI\n\nAnalyzing market...");
+  await renderScreen(u, "🤖 NEXORA AI\n\nAnalyzing the market…");
   const plan = await planTrade(s);
   await setUiState(u.id, { plan });
   await track(u.id, "ai_recommendation", plan);
-  await renderScreen(
-    u,
-    `🤖 ANALYSIS COMPLETE\n\n${plan.symbol}\n\n${dirIcon(plan.direction)} ${plan.direction}${
-      s.show_confidence ? `\n\n🎯 AI Confidence:\n${plan.confidence}%` : ""
-    }\n\n⏱ Suggested duration:\n${durText(plan.duration_minutes)}`,
-    kb([[{ text: "👀 VIEW TRADE", data: "setup" }], [{ text: "🏠 HOME", data: "home" }]]),
-  );
+  await tradeScreen(u, s);
 }
 
 const dirIcon = (d: string) => (d === "LONG" ? "📈" : "📉");
+const dirWord = (d: string) => (d === "LONG" ? "BUY (price going up)" : "SELL (price going down)");
 const durText = (m: number) =>
   m >= 60 ? `${m / 60 === Math.floor(m / 60) ? m / 60 : (m / 60).toFixed(1)} hour${m >= 120 ? "s" : ""}` : `${m} minutes`;
 const price = (v: number) => `$${Number(v).toLocaleString("en-US", { maximumFractionDigits: 4 })}`;
+const RISK = "balanced";
 
-async function setupScreen(u: NexoraUser, s: Settings, risk = "balanced") {
+/** Step 1 — the AI trade plus the only choice the user makes: how much. */
+async function tradeScreen(u: NexoraUser, s: Settings) {
   const plan = (u.ui_state as { plan?: TradePlan }).plan;
   if (!plan) return startTrade(u, s);
-  await setUiState(u.id, { plan, risk });
-  const mark = (r: string) => (r === risk ? " ✅" : "");
-  await renderScreen(
-    u,
-    `🤖 AI TRADE\n\n${plan.symbol}\n\n${dirIcon(plan.direction)} ${plan.direction}\n\nEntry:\n${price(
-      plan.entry_price,
-    )}\n\n🎯 Take Profit:\n${price(plan.take_profit)}\n\n🛑 Stop Loss:\n${price(
-      plan.stop_loss,
-    )}\n\n⏱ Duration:\n${durText(plan.duration_minutes)}${
-      s.show_confidence ? `\n\n🎯 AI Confidence:\n${plan.confidence}%` : ""
-    }\n\n${LINE}\n\nChoose your risk`,
-    kb([
-      [{ text: `🟢 CONSERVATIVE${mark("conservative")}`, data: "risk:conservative" }],
-      [{ text: `🟡 BALANCED ⭐${mark("balanced")}`, data: "risk:balanced" }],
-      [{ text: `🔴 AGGRESSIVE${mark("aggressive")}`, data: "risk:aggressive" }],
-      [{ text: "CONTINUE ➜", data: "amount" }],
-      [{ text: "🏠 HOME", data: "home" }],
-    ]),
-  );
-}
-
-async function amountScreen(u: NexoraUser, s: Settings) {
-  const st = u.ui_state as { plan?: TradePlan; risk?: string };
-  if (!st.plan) return startTrade(u, s);
   const b = await getBalance(u.id);
-  const factor = s.risk_profiles[st.risk ?? "balanced"] ?? 0.25;
-  const rec = sizeTrade(Number(b.balance), factor, st.plan.confidence, s);
-  const options = [2.5, 5, rec.amount, 10, 25].filter(
-    (v, i, arr) => v <= Number(b.balance) && arr.indexOf(v) === i,
-  );
-  await setUiState(u.id, { ...st, rec: rec.amount });
+  const factor = s.risk_profiles[RISK] ?? 0.25;
+  const rec = sizeTrade(Number(b.balance), factor, plan.confidence, s);
+  const presets = [2.5, 5, 10, 25];
+  const options = [...new Set([rec.amount, ...presets])]
+    .filter((v) => v <= Number(b.balance))
+    .sort((a, c) => a - c);
+  await setUiState(u.id, { plan, risk: RISK, rec: rec.amount });
   await renderScreen(
     u,
-    `💰 TRADE SIZE\n\nAvailable balance:\n${usd(b.balance)}\n\n🤖 AI Recommended:\n${usd(
-      rec.amount,
-    )}\n\nChoose amount:`,
+    `🤖 AI FOUND A TRADE\n\n${plan.symbol}\n${dirIcon(plan.direction)} ${dirWord(
+      plan.direction,
+    )}\n\n⏱ Runs for:\n${durText(plan.duration_minutes)}${
+      s.show_confidence ? `\n\n🎯 AI confidence:\n${plan.confidence}%` : ""
+    }\n\n💰 Your balance:\n${usd(b.balance)}\n\n${LINE}\n\nStep 1 of 2 — how much do you want to trade?`,
     kb([
       ...options.map((v) => [
-        { text: `${usd(v)}${v === rec.amount ? " ⭐" : ""}`, data: `amt:${v}` },
+        { text: `${usd(v)}${v === rec.amount ? "  ⭐ AI pick" : ""}`, data: `amt:${v}` },
       ]),
-      [{ text: "✏️ CUSTOM", data: "custom" }],
-      [{ text: "⬅️ BACK", data: "setup" }],
+      [{ text: "✏️ OTHER AMOUNT", data: "custom" }],
+      [{ text: "🔄 NEW TRADE", data: "trade" }, { text: "🏠 HOME", data: "home" }],
     ]),
   );
 }
 
+/** Step 2 — confirm. */
 async function confirmScreen(u: NexoraUser, s: Settings, amount: number) {
-  const st = u.ui_state as { plan?: TradePlan; risk?: string };
+  const st = u.ui_state as { plan?: TradePlan };
   if (!st.plan) return startTrade(u, s);
   const b = await getBalance(u.id);
   if (toCents(amount) > toCents(b.balance)) {
     await renderScreen(
       u,
-      `⚠️ Amount exceeds your balance (${usd(b.balance)}).`,
-      kb([[{ text: "⬅️ BACK", data: "amount" }]]),
+      `⚠️ That is more than your balance (${usd(b.balance)}).`,
+      kb([[{ text: "⬅️ BACK", data: "setup" }]]),
     );
     return;
   }
-  const factor = s.risk_profiles[st.risk ?? "balanced"] ?? 0.25;
+  const factor = s.risk_profiles[RISK] ?? 0.25;
   const sized = sizeTrade(amount, 1, st.plan.confidence, s);
   const draft = {
     amount,
@@ -189,19 +166,23 @@ async function confirmScreen(u: NexoraUser, s: Settings, amount: number) {
     potential_profit: sized.potential_profit,
     potential_loss: sized.potential_loss,
   };
-  await setUiState(u.id, { ...st, draft });
+  await setUiState(u.id, { ...st, risk: RISK, draft });
   await renderScreen(
     u,
-    `⚡ CONFIRM AI TRADE\n\n${st.plan.symbol}\n${dirIcon(st.plan.direction)} ${
-      st.plan.direction
-    }\n\nAmount:\n${usd(amount)}\n\n⚡ Leverage:\n${draft.leverage}x\n\nPotential Profit:\n+${usd(
+    `⚡ CONFIRM YOUR TRADE\n\n${st.plan.symbol}\n${dirIcon(st.plan.direction)} ${dirWord(
+      st.plan.direction,
+    )}\n\nYou are trading:\n${usd(amount)}\n\nIf it wins:\n+${usd(
       draft.potential_profit,
-    )}\n\nPotential Loss:\n-${usd(draft.potential_loss)}${
-      s.show_confidence ? `\n\nAI Confidence:\n${st.plan.confidence}%` : ""
-    }\n\n⏱ Duration:\n${durText(st.plan.duration_minutes)}\n\n⚠️ Markets can move against the trade.`,
-    kb([[{ text: "✅ ENTER TRADE", data: "enter" }], [{ text: "❌ CANCEL", data: "home" }]]),
+    )}\n\nIf it loses:\n-${usd(draft.potential_loss)}\n\n⏱ Runs for:\n${durText(
+      st.plan.duration_minutes,
+    )}\n\n${LINE}\nStep 2 of 2 — markets can move against a trade.`,
+    kb([
+      [{ text: "✅ START TRADE", data: "enter" }],
+      [{ text: "⬅️ BACK", data: "setup" }, { text: "❌ CANCEL", data: "home" }],
+    ]),
   );
 }
+
 
 export function activeTradeText(t: {
   symbol: string;
