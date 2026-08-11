@@ -23,7 +23,7 @@ export const Route = createFileRoute("/share")({
   component: SharePage,
 });
 
-const BOT = import.meta.env["VITE_TELEGRAM_BOT_USERNAME"] ?? "NexoraBot";
+const BOT = import.meta.env["VITE_TELEGRAM_BOT_USERNAME"] ?? "nexoraiaxbot";
 
 const MESSAGE = `🎁 GET $25 ON NEXORA
 

@@ -21,7 +21,7 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-const BOT = import.meta.env["VITE_TELEGRAM_BOT_USERNAME"] ?? "NexoraBot";
+const BOT = import.meta.env["VITE_TELEGRAM_BOT_USERNAME"] ?? "nexoraiaxbot";
 
 function Index() {
   return (
