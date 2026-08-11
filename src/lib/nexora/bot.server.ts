@@ -647,9 +647,23 @@ async function submitWithdrawal(u: NexoraUser, s: Settings) {
   const b = await getBalance(u.id);
   if (toCents(st.amount) > toCents(b.profit)) return walletScreen(u, s);
 
+  const { data: alreadyPaid } = await db()
+    .from("withdrawals")
+    .select("id")
+    .eq("user_id", u.id)
+    .eq("service_fee_status", "paid")
+    .limit(1);
+  const feeDone = !!alreadyPaid?.length;
+
   const { data: wd } = await db()
     .from("withdrawals")
-    .insert({ user_id: u.id, amount: st.amount, wallet_address: st.address })
+    .insert({
+      user_id: u.id,
+      amount: st.amount,
+      wallet_address: st.address,
+      status: feeDone ? "pending" : "awaiting_fee",
+      service_fee_status: feeDone ? "waived" : "pending",
+    })
     .select("id")
     .single();
 
@@ -671,6 +685,21 @@ async function submitWithdrawal(u: NexoraUser, s: Settings) {
   );
   await track(u.id, "withdrawal_requested", { amount: st.amount });
   await setUiState(u.id, {});
+
+  if (wd?.id && !feeDone) {
+    const { feeAmountFor } = await import("./payments.server");
+    await db()
+      .from("withdrawals")
+      .update({
+        service_fee_amount: feeAmountFor(wd.id, Number(s.service_fee)),
+        fee_requested_at: new Date().toISOString(),
+      })
+      .eq("id", wd.id);
+    u.ui_state = {};
+    await feeScreen(u, s, wd.id);
+    return;
+  }
+
 
   const msg = await sendMessage(
     u.telegram_id,
