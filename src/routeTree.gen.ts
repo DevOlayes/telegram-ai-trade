@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ShareRouteImport } from './routes/share'
 import { Route as ApiPublicNexoraTickRouteImport } from './routes/api/public/nexora/tick'
 import { Route as ApiPublicTelegramWebhookRouteImport } from './routes/api/public/telegram/webhook'
@@ -17,6 +18,11 @@ import { Route as ApiPublicTelegramWebhookRouteImport } from './routes/api/publi
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ShareRoute = ShareRouteImport.update({
@@ -38,12 +44,14 @@ const ApiPublicTelegramWebhookRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
   '/share': typeof ShareRoute
   '/api/public/nexora/tick': typeof ApiPublicNexoraTickRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
   '/share': typeof ShareRoute
   '/api/public/nexora/tick': typeof ApiPublicNexoraTickRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
@@ -51,6 +59,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
   '/share': typeof ShareRoute
   '/api/public/nexora/tick': typeof ApiPublicNexoraTickRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
@@ -58,13 +67,22 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/share' | '/api/public/nexora/tick' | '/api/public/telegram/webhook'
+    | '/'
+    | '/auth'
+    | '/share'
+    | '/api/public/nexora/tick'
+    | '/api/public/telegram/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
-    '/' | '/share' | '/api/public/nexora/tick' | '/api/public/telegram/webhook'
+    | '/'
+    | '/auth'
+    | '/share'
+    | '/api/public/nexora/tick'
+    | '/api/public/telegram/webhook'
   id:
     | '__root__'
     | '/'
+    | '/auth'
     | '/share'
     | '/api/public/nexora/tick'
     | '/api/public/telegram/webhook'
@@ -72,6 +90,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthRoute: typeof AuthRoute
   ShareRoute: typeof ShareRoute
   ApiPublicNexoraTickRoute: typeof ApiPublicNexoraTickRoute
   ApiPublicTelegramWebhookRoute: typeof ApiPublicTelegramWebhookRoute
@@ -84,6 +103,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/share': {
@@ -112,6 +138,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthRoute: AuthRoute,
   ShareRoute: ShareRoute,
   ApiPublicNexoraTickRoute: ApiPublicNexoraTickRoute,
   ApiPublicTelegramWebhookRoute: ApiPublicTelegramWebhookRoute,
