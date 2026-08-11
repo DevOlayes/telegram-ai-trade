@@ -68,8 +68,21 @@ function AdminPage() {
     return u ? (u.username ? `@${u.username}` : String(u.telegram_id)) : id.slice(0, 8);
   };
 
+  const s = data!.stats;
+
   return (
     <Shell>
+      <section className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Stat label="Users (24h)" value={s.users24h} hint="New registrations today" accent />
+        <Stat label="Total users" value={s.totalUsers} hint="All time" />
+        <Stat label="Users (7d)" value={s.users7d} hint="Last 7 days" />
+        <Stat label="Active trades" value={s.activeTrades} hint="Currently running" />
+        <Stat label="Pending withdrawals" value={s.pendingWithdrawals} hint="Awaiting action" />
+        <Stat label="Total balance" value={money(s.totalBalance)} hint="Across all users" />
+        <Stat label="Total profit" value={money(s.totalProfit)} hint="Withdrawable pool" />
+        <Stat label="Referrals" value={data!.referrals.length} hint="Recent records" />
+      </section>
+
       <div className="mb-6 flex flex-wrap gap-2">
         {TABS.map((t) => (
           <button
@@ -83,6 +96,7 @@ function AdminPage() {
           </button>
         ))}
       </div>
+
 
       {tab === "users" && (
         <Table head={["Telegram", "Username", "Registered", "Bonus", "Balance", "Profit", "Refs", "Status", ""]}>
@@ -229,6 +243,31 @@ function SettingRow({
     </div>
   );
 }
+
+function Stat({
+  label,
+  value,
+  hint,
+  accent = false,
+}: {
+  label: string;
+  value: React.ReactNode;
+  hint?: string;
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-xl border p-4 ${
+        accent ? "border-primary/40 bg-primary/10" : "border-border bg-card"
+      }`}
+    >
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
+      {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
