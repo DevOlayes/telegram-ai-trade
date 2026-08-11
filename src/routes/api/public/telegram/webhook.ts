@@ -1,13 +1,25 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { createHash, timingSafeEqual } from "crypto";
+
+function safeEqual(a: string, b: string) {
+  const l = Buffer.from(a);
+  const r = Buffer.from(b);
+  return l.length === r.length && timingSafeEqual(l, r);
+}
 
 export const Route = createFileRoute("/api/public/telegram/webhook")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const secret = process.env["TELEGRAM_WEBHOOK_SECRET"];
-        if (secret && request.headers.get("x-telegram-bot-api-secret-token") !== secret) {
+        const token = process.env["TELEGRAM_BOT_TOKEN"];
+        if (!token) return new Response("Not configured", { status: 500 });
+        const expected = createHash("sha256")
+          .update(`telegram-webhook:${token}`)
+          .digest("base64url");
+        if (!safeEqual(request.headers.get("x-telegram-bot-api-secret-token") ?? "", expected)) {
           return new Response("Unauthorized", { status: 401 });
         }
+
         let update: unknown;
         try {
           update = await request.json();
