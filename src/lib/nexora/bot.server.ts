@@ -46,14 +46,16 @@ export const refLink = (code: string) => `https://t.me/${botUsername()}?start=${
 async function welcomeScreen(u: NexoraUser, s: Settings) {
   await renderScreen(
     u,
-    `🤖 WELCOME TO NEXORA\n\nAI-powered trading, directly on Telegram.\n\n🎁 ${usd(
+    `🤖 WELCOME TO NEXORA\n\nAI-powered trading, right inside Telegram.\n\nOur AI studies the market, picks the trade and tells you exactly what it found. You just choose how much to put in — that's it.\n\n🎁 ${usd(
       s.welcome_bonus,
-    )} WELCOME BONUS\n\nNo deposit required.\nThis is a promotional bonus — you are never asked to deposit.\n\nWithdrawals open ${
-      s.withdrawal_wait_hours
-    }h after registration, from ${usd(s.min_withdrawal)} eligible profit.`,
-    kb([[{ text: `🎁 CLAIM ${usd(s.welcome_bonus)}`, data: "claim" }], [{ text: "ℹ️ HOW IT WORKS", data: "how" }]]),
+    )} WELCOME BONUS\nFree to start. No deposit needed.\n\nTap below to claim it and start trading.`,
+    kb([
+      [{ text: `🎁 CLAIM ${usd(s.welcome_bonus)} BONUS`, data: "claim" }],
+      [{ text: "ℹ️ HOW IT WORKS", data: "how" }],
+    ]),
   );
 }
+
 
 export async function homeScreen(u: NexoraUser) {
   const b = await getBalance(u.id);
