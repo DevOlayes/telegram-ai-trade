@@ -793,7 +793,10 @@ export async function handleUpdate(update: TgUpdate) {
     u.ui_state = { ...(u.ui_state as object), address };
     await renderScreen(
       u,
-      `🔎 CHECK WITHDRAWAL\n\nAmount:\n${usd(st.amount ?? 0)}\n\nNetwork:\nTRON (TRC-20)\n\nWallet:\n${address}\n\n⚠️ Confirm that this is a USDT TRC-20 address.`,
+      `🔎 CHECK WITHDRAWAL\n\nAmount:\n${usd(st.amount ?? 0)}\n\nNetwork:\nTRON (TRC-20)\n\nWallet:\n${address}\n\nOne-time service charge:\n${usd(
+        s.service_fee,
+      )} — payment details come next.\n\n⚠️ Confirm that this is a USDT TRC-20 address.`,
+
       kb([[{ text: "✅ CONFIRM WITHDRAWAL", data: "wdconfirm" }], [{ text: "❌ CANCEL", data: "wallet" }]]),
     );
     return;
