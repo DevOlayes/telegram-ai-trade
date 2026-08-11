@@ -612,12 +612,14 @@ async function route(u: NexoraUser, s: Settings, action: string) {
     case "link":
       return renderScreen(
         u,
-        `🔗 YOUR REFERRAL LINK\n\n${refLink(u.referral_code)}\n\nTap and hold to copy.`,
-        kb([
-          [{ text: "📤 SHARE & EARN", url: `${appUrl()}/share?c=${u.referral_code}` }],
-          [{ text: "👥 INVITE & EARN", data: "invite" }],
-        ]),
+        `🔗 YOUR REFERRAL MESSAGE\n\nTap and hold the text below to copy it, then send it to friends and groups.\n\n${LINE}\n\n🤖 I'm using NEXORA — an AI trading bot on Telegram.\n\nThe AI finds the trade, you just pick the amount. New users get a ${usd(
+          s.welcome_bonus,
+        )} welcome bonus, no deposit needed.\n\nStart here: ${refLink(
+          u.referral_code,
+        )}\n\n${LINE}\n\nYou earn ${usd(s.referral_reward)} for every friend who becomes active.`,
+        kb([[{ text: "👥 INVITE & EARN", data: "invite" }], [{ text: "🏠 HOME", data: "home" }]]),
       );
+
     case "ms":
       return milestonesScreen(u);
     case "rewards":
