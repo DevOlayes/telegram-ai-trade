@@ -469,8 +469,8 @@ async function inviteScreen(u: NexoraUser, s: Settings) {
         : "\n\n🏆 All milestones unlocked!"
     }`,
     kb([
-      [{ text: "📤 SHARE & EARN", url: `${appUrl()}/share?c=${u.referral_code}` }],
-      [{ text: "🔗 COPY LINK", data: "link" }],
+      [{ text: "🔗 GET MY LINK", data: "link" }],
+
       [{ text: "🎯 MILESTONES", data: "ms" }, { text: "💰 MY REWARDS", data: "rewards" }],
       [{ text: "🏠 HOME", data: "home" }],
     ]),
