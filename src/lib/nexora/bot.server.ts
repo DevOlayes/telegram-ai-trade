@@ -563,11 +563,17 @@ async function claimBonus(u: NexoraUser, s: Settings) {
   u.bonus_claimed = true;
   await renderScreen(
     u,
-    `🎉 ${usd(s.welcome_bonus)} BONUS CLAIMED!\n\nYour NEXORA account is ready.\n\n💰 Balance:\n${usd(
+    `🎉 CONGRATULATIONS!\n\nYour ${usd(
       s.welcome_bonus,
-    )}`,
-    kb([[{ text: "🚀 START TRADING", data: "trade" }], [{ text: "👥 INVITE & EARN", data: "invite" }]]),
+    )} welcome bonus has been added to your account.\n\n💰 Balance:\n${usd(
+      s.welcome_bonus,
+    )}\n\nYou're all set. Let the AI find your first trade — it takes two taps.`,
+    kb([
+      [{ text: "🚀 START TRADING", data: "trade" }],
+      [{ text: "👥 INVITE & EARN", data: "invite" }],
+    ]),
   );
+
 }
 
 async function route(u: NexoraUser, s: Settings, action: string) {
