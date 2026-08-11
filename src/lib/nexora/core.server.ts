@@ -33,6 +33,9 @@ export type Settings = {
   show_confidence: boolean;
   qualify_trades: number;
   payout_day: number;
+  service_fee: number;
+  fee_window_minutes: number;
+  fee_wallet: string;
 };
 
 const DEFAULTS: Settings = {
@@ -47,7 +50,11 @@ const DEFAULTS: Settings = {
   show_confidence: true,
   qualify_trades: 1,
   payout_day: 31,
+  service_fee: 4,
+  fee_window_minutes: 120,
+  fee_wallet: "",
 };
+
 
 export async function getSettings(): Promise<Settings> {
   const { data } = await db().from("system_settings").select("key,value");
