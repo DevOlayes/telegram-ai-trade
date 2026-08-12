@@ -99,6 +99,9 @@ export async function runTick() {
 
   const { sweepFees } = await import("./payments.server");
   const fees = await sweepFees();
+  const { matchDeposits } = await import("./deposits.server");
+  const deposits = await matchDeposits();
 
-  return { checked: trades?.length ?? 0, settled, ...fees };
+  return { checked: trades?.length ?? 0, settled, ...fees, ...deposits };
+
 }
