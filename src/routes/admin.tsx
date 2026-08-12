@@ -183,6 +183,24 @@ function AdminPage() {
         </Table>
       )}
 
+      {tab === "deposits" && (
+        <Table head={["User", "Requested", "Exact amount", "Status", "Tx", "When"]}>
+          {data!.deposits.map((d) => (
+            <tr key={d.id} className="border-t border-border">
+              <Td>{userLabel(d.user_id)}</Td>
+              <Td>{money(d.amount)}</Td>
+              <Td>{Number(d.unique_amount).toFixed(2)} USDT</Td>
+              <Td>{d.status}</Td>
+              <Td className="max-w-[140px] truncate">
+                {d.tx_hash ? `${String(d.tx_hash).slice(0, 10)}…` : "—"}
+              </Td>
+              <Td>{new Date(d.created_at).toLocaleString()}</Td>
+            </tr>
+          ))}
+        </Table>
+      )}
+
+
       {tab === "referrals" && (
         <Table head={["Referrer", "Referred", "Status", "Reward", "Qualified"]}>
           {data!.referrals.map((r) => (
