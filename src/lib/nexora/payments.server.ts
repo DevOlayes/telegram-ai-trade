@@ -1,8 +1,7 @@
 // Withdrawal service-charge payments: on-chain USDT (TRC-20) verification.
 import { applyBalance, db, getSettings, usd } from "./core.server";
 import { sendMessage } from "./telegram.server";
-
-const USDT_TRC20 = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+import { recentTransfers, transferAmount } from "./tron.server";
 
 export type WithdrawalRow = {
   id: string;
@@ -23,31 +22,6 @@ export function feeAmountFor(id: string, baseFee: number) {
   return Number((Number(baseFee) + (h + 1) / 100).toFixed(2));
 }
 
-type TronTransfer = {
-  transaction_id: string;
-  value: string;
-  to: string;
-  block_timestamp: number;
-  token_info?: { decimals?: number };
-};
-
-async function recentTransfers(wallet: string, sinceMs: number): Promise<TronTransfer[]> {
-  const url =
-    `https://api.trongrid.io/v1/accounts/${wallet}/transactions/trc20` +
-    `?only_confirmed=true&only_to=true&limit=200&contract_address=${USDT_TRC20}` +
-    `&min_timestamp=${Math.max(0, sinceMs)}`;
-  const headers: Record<string, string> = {};
-  const key = process.env["TRONGRID_API_KEY"];
-  if (key) headers["TRON-PRO-API-KEY"] = key;
-  try {
-    const res = await fetch(url, { headers });
-    const json = (await res.json()) as { data?: TronTransfer[] };
-    return json.data ?? [];
-  } catch (e) {
-    console.error("trongrid error", e);
-    return [];
-  }
-}
 
 /**
  * Look for a confirmed USDT transfer matching this withdrawal's exact fee
