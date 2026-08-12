@@ -39,6 +39,12 @@ export const getAdminOverview = createServerFn({ method: "GET" })
       db().from("system_settings").select("key,value").order("key"),
     ]);
     const balances = await db().from("balances").select("user_id,balance,profit,referral_balance");
+    const deposits = await db()
+      .from("deposits")
+      .select("id,user_id,amount,unique_amount,status,tx_hash,created_at")
+      .order("created_at", { ascending: false })
+      .limit(100);
+
 
     const since24 = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
