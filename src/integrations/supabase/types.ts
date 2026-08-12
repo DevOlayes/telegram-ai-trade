@@ -79,6 +79,56 @@ export type Database = {
           },
         ]
       }
+      deposits: {
+        Row: {
+          amount: number
+          created_at: string
+          credited_at: string | null
+          id: string
+          message_id: number | null
+          status: string
+          tx_hash: string | null
+          unique_amount: number
+          updated_at: string
+          user_id: string
+          wallet_address: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          credited_at?: string | null
+          id?: string
+          message_id?: number | null
+          status?: string
+          tx_hash?: string | null
+          unique_amount: number
+          updated_at?: string
+          user_id: string
+          wallet_address: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          credited_at?: string | null
+          id?: string
+          message_id?: number | null
+          status?: string
+          tx_hash?: string | null
+          unique_amount?: number
+          updated_at?: string
+          user_id?: string
+          wallet_address?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deposits_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           created_at: string
