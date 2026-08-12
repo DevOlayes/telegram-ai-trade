@@ -33,7 +33,7 @@ export async function findFeePayment(wd: WithdrawalRow, wallet: string) {
     ? new Date(wd.fee_requested_at).getTime() - 10 * 60000
     : Date.now() - 6 * 3600000;
   const transfers = await recentTransfers(wallet, since);
-  const expected = Math.round(Number(wd.service_fee_amount) * 1e6);
+  const expected = Math.round(Number(wd.service_fee_amount) * 100);
 
   const { data: used } = await db()
     .from("withdrawals")
@@ -42,10 +42,10 @@ export async function findFeePayment(wd: WithdrawalRow, wallet: string) {
   const taken = new Set((used ?? []).map((r) => r.service_fee_tx));
 
   for (const t of transfers) {
-    const decimals = t.token_info?.decimals ?? 6;
-    const value = Math.round(Number(t.value) / Math.pow(10, decimals - 6));
+    const value = Math.round(transferAmount(t) * 100);
     if (value === expected && !taken.has(t.transaction_id)) return t.transaction_id;
   }
+
   return null;
 }
 
