@@ -36,6 +36,8 @@ export type Settings = {
   service_fee: number;
   fee_window_minutes: number;
   fee_wallet: string;
+  deposit_window_minutes: number;
+
 };
 
 const DEFAULTS: Settings = {
