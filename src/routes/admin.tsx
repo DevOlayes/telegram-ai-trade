@@ -22,7 +22,7 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-const TABS = ["users", "trades", "withdrawals", "referrals", "settings"] as const;
+const TABS = ["users", "trades", "deposits", "withdrawals", "referrals", "settings"] as const;
 type Tab = (typeof TABS)[number];
 
 const money = (v: unknown) => `$${Number(v ?? 0).toFixed(2)}`;
