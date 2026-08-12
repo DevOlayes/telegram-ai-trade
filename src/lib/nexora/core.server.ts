@@ -55,6 +55,8 @@ const DEFAULTS: Settings = {
   service_fee: 4,
   fee_window_minutes: 120,
   fee_wallet: "",
+  deposit_window_minutes: 180,
+
 };
 
 
