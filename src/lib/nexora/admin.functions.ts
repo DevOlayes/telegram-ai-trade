@@ -64,7 +64,9 @@ export const getAdminOverview = createServerFn({ method: "GET" })
       users: users.data ?? [],
       trades: trades.data ?? [],
       withdrawals: withdrawals.data ?? [],
+      deposits: deposits.data ?? [],
       referrals: referrals.data ?? [],
+
       settings: settings.data ?? [],
       balances: bal,
       stats: {
