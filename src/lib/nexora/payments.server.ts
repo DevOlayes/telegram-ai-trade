@@ -1,8 +1,7 @@
 // Withdrawal service-charge payments: on-chain USDT (TRC-20) verification.
 import { applyBalance, db, getSettings, usd } from "./core.server";
 import { sendMessage } from "./telegram.server";
-
-const USDT_TRC20 = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+import { recentTransfers, transferAmount } from "./tron.server";
 
 export type WithdrawalRow = {
   id: string;
@@ -23,31 +22,6 @@ export function feeAmountFor(id: string, baseFee: number) {
   return Number((Number(baseFee) + (h + 1) / 100).toFixed(2));
 }
 
-type TronTransfer = {
-  transaction_id: string;
-  value: string;
-  to: string;
-  block_timestamp: number;
-  token_info?: { decimals?: number };
-};
-
-async function recentTransfers(wallet: string, sinceMs: number): Promise<TronTransfer[]> {
-  const url =
-    `https://api.trongrid.io/v1/accounts/${wallet}/transactions/trc20` +
-    `?only_confirmed=true&only_to=true&limit=200&contract_address=${USDT_TRC20}` +
-    `&min_timestamp=${Math.max(0, sinceMs)}`;
-  const headers: Record<string, string> = {};
-  const key = process.env["TRONGRID_API_KEY"];
-  if (key) headers["TRON-PRO-API-KEY"] = key;
-  try {
-    const res = await fetch(url, { headers });
-    const json = (await res.json()) as { data?: TronTransfer[] };
-    return json.data ?? [];
-  } catch (e) {
-    console.error("trongrid error", e);
-    return [];
-  }
-}
 
 /**
  * Look for a confirmed USDT transfer matching this withdrawal's exact fee
@@ -59,7 +33,7 @@ export async function findFeePayment(wd: WithdrawalRow, wallet: string) {
     ? new Date(wd.fee_requested_at).getTime() - 10 * 60000
     : Date.now() - 6 * 3600000;
   const transfers = await recentTransfers(wallet, since);
-  const expected = Math.round(Number(wd.service_fee_amount) * 1e6);
+  const expected = Math.round(Number(wd.service_fee_amount) * 100);
 
   const { data: used } = await db()
     .from("withdrawals")
@@ -68,10 +42,10 @@ export async function findFeePayment(wd: WithdrawalRow, wallet: string) {
   const taken = new Set((used ?? []).map((r) => r.service_fee_tx));
 
   for (const t of transfers) {
-    const decimals = t.token_info?.decimals ?? 6;
-    const value = Math.round(Number(t.value) / Math.pow(10, decimals - 6));
+    const value = Math.round(transferAmount(t) * 100);
     if (value === expected && !taken.has(t.transaction_id)) return t.transaction_id;
   }
+
   return null;
 }
 
