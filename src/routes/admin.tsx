@@ -11,10 +11,10 @@ import {
 export const Route = createFileRoute("/admin")({
   head: () => ({
     meta: [
-      { title: "NEXORA Admin Panel" },
-      { name: "description", content: "Manage NEXORA users, trades, withdrawals and settings." },
-      { property: "og:title", content: "NEXORA Admin Panel" },
-      { property: "og:description", content: "Manage NEXORA users, trades, withdrawals and settings." },
+      { title: "LEXORA Admin Panel" },
+      { name: "description", content: "Manage LEXORA users, trades, withdrawals and settings." },
+      { property: "og:title", content: "LEXORA Admin Panel" },
+      { property: "og:description", content: "Manage LEXORA users, trades, withdrawals and settings." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -290,7 +290,7 @@ function Stat({
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-screen bg-background px-6 py-10 text-foreground">
-      <h1 className="mb-6 text-2xl font-bold">NEXORA Admin</h1>
+      <h1 className="mb-6 text-2xl font-bold">LEXORA Admin</h1>
       {children}
     </main>
   );

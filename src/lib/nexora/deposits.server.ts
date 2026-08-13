@@ -2,7 +2,8 @@
 // One shared collection wallet; each pending deposit carries a unique cents
 // tag so an incoming transfer can be attributed to exactly one user.
 import { applyBalance, db, getBalance, getSettings, track, usd } from "./core.server";
-import { editMessage, kb, sendMessage } from "./telegram.server";
+import { editMessage, editPhoto, kb, sendPhoto } from "./telegram.server";
+import { IMG } from "./images.server";
 import { recentTransfers, transferAmount } from "./tron.server";
 
 export type DepositRow = {
@@ -119,9 +120,16 @@ async function creditDeposit(dep: DepositRow, txHash: string, received: number) 
     [{ text: "🏠 MENU", data: "home" }],
   ]);
   if (dep.message_id) {
-    await editMessage(user.telegram_id, dep.message_id, text, markup);
+    const ok = await editPhoto(
+      user.telegram_id,
+      dep.message_id,
+      IMG.depositSuccess(),
+      text,
+      markup,
+    );
+    if (!ok) await sendPhoto(user.telegram_id, IMG.depositSuccess(), text, markup);
   } else {
-    await sendMessage(user.telegram_id, text, markup);
+    await sendPhoto(user.telegram_id, IMG.depositSuccess(), text, markup);
   }
   return true;
 }

@@ -3,7 +3,8 @@ import { applyBalance, db, getBalance, getSettings, track, usd } from "./core.se
 import { tickTrade, type TradeRow } from "./engine.server";
 import { activeTradeText } from "./bot.server";
 import { qualifyReferral } from "./referrals.server";
-import { editMessage, kb, sendMessage } from "./telegram.server";
+import { editMessage, editPhoto, kb, sendPhoto } from "./telegram.server";
+import { IMG } from "./images.server";
 
 const UPDATE_INTERVAL_MS = 2 * 60 * 1000;
 
@@ -87,11 +88,11 @@ export async function runTick() {
     ]);
 
     if (user) {
-      if (trade.message_id) {
-        await editMessage(user.telegram_id, trade.message_id, text, markup);
-      } else {
-        await sendMessage(user.telegram_id, text, markup);
-      }
+      const photo = win ? IMG.tradeWon() : IMG.tradeLoss();
+      const sent = trade.message_id
+        ? await editPhoto(user.telegram_id, trade.message_id, photo, text, markup)
+        : null;
+      if (!sent) await sendPhoto(user.telegram_id, photo, text, markup);
     }
 
     await qualifyReferral(trade.user_id);

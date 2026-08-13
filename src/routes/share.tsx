@@ -1,16 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { SHARE_CAPTION } from "@/lib/nexora/copy";
 
 export const Route = createFileRoute("/share")({
   head: () => ({
     meta: [
-      { title: "Get $25 on NEXORA — AI Trading on Telegram" },
+      { title: "Get $25 on LEXORA — AI Trading on Telegram" },
       {
         name: "description",
         content:
-          "Try NEXORA's AI-powered trading on Telegram. No deposit required — claim your $25 welcome bonus.",
+          "Try LEXORA's AI-powered trading on Telegram. No deposit required — claim your $25 welcome bonus.",
       },
-      { property: "og:title", content: "🎁 Get $25 on NEXORA" },
+      { property: "og:title", content: "🎁 Get $25 on LEXORA" },
       {
         property: "og:description",
         content: "AI-powered trading on Telegram. No deposit required. Claim your $25 bonus.",
@@ -25,13 +26,7 @@ export const Route = createFileRoute("/share")({
 
 const BOT = import.meta.env["VITE_TELEGRAM_BOT_USERNAME"] ?? "nexoraiaxbot";
 
-const MESSAGE = `🎁 GET $25 ON NEXORA
-
-Try NEXORA's AI-powered trading experience directly on Telegram.
-
-No deposit required.
-
-Claim your $25 welcome bonus 👇`;
+const MESSAGE = SHARE_CAPTION;
 
 function SharePage() {
   const { c } = Route.useSearch();
@@ -42,7 +37,7 @@ function SharePage() {
   const nativeShare = async () => {
     if (navigator.share) {
       try {
-        await navigator.share({ title: "NEXORA", text: MESSAGE, url: link });
+        await navigator.share({ title: "LEXORA", text: MESSAGE, url: link });
         return;
       } catch {
         /* user cancelled */
@@ -71,14 +66,14 @@ function SharePage() {
     { label: "SMS", url: `sms:?&body=${encodeURIComponent(full)}` },
     {
       label: "Email",
-      url: `mailto:?subject=${encodeURIComponent("Get $25 on NEXORA")}&body=${encodeURIComponent(full)}`,
+      url: `mailto:?subject=${encodeURIComponent("Get $25 on LEXORA")}&body=${encodeURIComponent(full)}`,
     },
   ];
 
   return (
     <main className="min-h-screen bg-background px-6 py-12 text-foreground">
       <div className="mx-auto flex max-w-md flex-col gap-6">
-        <h1 className="text-3xl font-bold">🎁 Share NEXORA & earn</h1>
+        <h1 className="text-3xl font-bold">🎁 Share LEXORA & earn</h1>
         <p className="text-sm text-muted-foreground">
           Your friend gets $25. You earn $2 per qualified active referral.
         </p>
