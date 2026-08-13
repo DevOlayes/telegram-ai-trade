@@ -1,4 +1,4 @@
-// NEXORA core: database access, settings, money math, user/account system.
+// LEXORA core: database access, settings, money math, user/account system.
 // Server-only. Never imported from client code.
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
@@ -37,6 +37,8 @@ export type Settings = {
   fee_window_minutes: number;
   fee_wallet: string;
   deposit_window_minutes: number;
+  starter_wins: number;
+  no_double_loss: boolean;
 
 };
 
@@ -47,7 +49,7 @@ const DEFAULTS: Settings = {
   referral_reward: 2,
   durations: [30, 45, 60, 120, 180, 240],
   risk_profiles: { conservative: 0.1, balanced: 0.25, aggressive: 0.45 },
-  win_rate: 0.55,
+  win_rate: 0.85,
   expiry_rule: "market",
   show_confidence: true,
   qualify_trades: 1,
@@ -56,6 +58,8 @@ const DEFAULTS: Settings = {
   fee_window_minutes: 120,
   fee_wallet: "",
   deposit_window_minutes: 180,
+  starter_wins: 3,
+  no_double_loss: true,
 
 };
 
@@ -68,7 +72,7 @@ export async function getSettings(): Promise<Settings> {
 }
 
 /* ---------------- users ---------------- */
-export type NexoraUser = {
+export type LexoraUser = {
   id: string;
   telegram_id: number;
   username: string | null;
@@ -98,14 +102,14 @@ export async function getOrCreateUser(tg: {
   id: number;
   username?: string;
   first_name?: string;
-}, refCode?: string): Promise<NexoraUser> {
+}, refCode?: string): Promise<LexoraUser> {
   const existing = await db().from("users").select("*").eq("telegram_id", tg.id).maybeSingle();
   if (existing.data) {
     await db()
       .from("users")
       .update({ last_seen_at: new Date().toISOString(), username: tg.username ?? null })
       .eq("id", existing.data.id);
-    return existing.data as NexoraUser;
+    return existing.data as LexoraUser;
   }
 
   let referrer: { id: string } | null = null;
@@ -139,7 +143,7 @@ export async function getOrCreateUser(tg: {
       .insert({ referrer_id: referrer.id, referred_id: data.id, status: "pending" });
   }
   await track(data.id, "registration", { referral_source: refCode ?? null });
-  return data as NexoraUser;
+  return data as LexoraUser;
 }
 
 export async function getBalance(userId: string): Promise<Balance> {
