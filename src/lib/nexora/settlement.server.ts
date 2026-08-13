@@ -3,7 +3,7 @@ import { applyBalance, db, getBalance, getSettings, track, usd } from "./core.se
 import { tickTrade, type TradeRow } from "./engine.server";
 import { activeTradeText } from "./bot.server";
 import { qualifyReferral } from "./referrals.server";
-import { editPhoto, kb, sendPhoto } from "./telegram.server";
+import { editMessage, editPhoto, kb, sendPhoto } from "./telegram.server";
 import { IMG } from "./images.server";
 
 const UPDATE_INTERVAL_MS = 2 * 60 * 1000;

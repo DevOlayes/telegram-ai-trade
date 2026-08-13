@@ -2,7 +2,7 @@
 // One shared collection wallet; each pending deposit carries a unique cents
 // tag so an incoming transfer can be attributed to exactly one user.
 import { applyBalance, db, getBalance, getSettings, track, usd } from "./core.server";
-import { editPhoto, kb, sendPhoto } from "./telegram.server";
+import { editMessage, editPhoto, kb, sendPhoto } from "./telegram.server";
 import { IMG } from "./images.server";
 import { recentTransfers, transferAmount } from "./tron.server";
 
