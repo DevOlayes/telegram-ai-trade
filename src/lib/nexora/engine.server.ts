@@ -90,12 +90,24 @@ export async function planTrade(settings: Settings): Promise<TradePlan> {
   };
 }
 
-/** Decide the programmed outcome for a new position (settlement rule). */
-export function decideOutcome(confidence: number, settings: Settings): "win" | "loss" {
-  const base = Number(settings.win_rate ?? 0.55);
-  const p = Math.max(0.05, Math.min(0.95, base + (confidence - 80) / 400));
+/**
+ * Decide the programmed outcome for a new position (settlement rule).
+ * New accounts get a guaranteed winning streak, and two losses never follow
+ * each other, so the experience stays positive. Both guards are configurable.
+ */
+export function decideOutcome(
+  confidence: number,
+  settings: Settings,
+  ctx?: { settled?: number; lastResult?: string | null },
+): "win" | "loss" {
+  const settled = ctx?.settled ?? 0;
+  if (settled < Number(settings.starter_wins ?? 0)) return "win";
+  if (settings.no_double_loss !== false && ctx?.lastResult === "loss") return "win";
+  const base = Number(settings.win_rate ?? 0.85);
+  const p = Math.max(0.05, Math.min(0.99, base + (confidence - 80) / 400));
   return Math.random() < p ? "win" : "loss";
 }
+
 
 /** Position sizing from a risk profile. */
 export function sizeTrade(
