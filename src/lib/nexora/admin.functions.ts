@@ -113,7 +113,8 @@ export const setWithdrawalStatus = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     await assertAdmin(context as never);
     const { db, usd, applyBalance } = await import("@/lib/nexora/core.server");
-    const { editMessage, sendMessage } = await import("@/lib/nexora/telegram.server");
+    const { editPhoto, sendPhoto } = await import("@/lib/nexora/telegram.server");
+    const { IMG } = await import("@/lib/nexora/images.server");
     const { data: wd } = await db()
       .from("withdrawals")
       .select("id,user_id,amount,status,message_id,wallet_address")
@@ -146,8 +147,12 @@ export const setWithdrawalStatus = createServerFn({ method: "POST" })
           : data.status === "rejected"
             ? `⚠️ WITHDRAWAL REJECTED\n\nAmount:\n${usd(wd.amount)}\n\nThe amount has been returned to your balance.`
             : `⏳ WITHDRAWAL PROCESSING\n\nAmount:\n${usd(wd.amount)}\n\nStatus:\nPending`;
-      if (wd.message_id) await editMessage(user.telegram_id, wd.message_id, text);
-      else await sendMessage(user.telegram_id, text);
+      const photo =
+        data.status === "paid" ? IMG.withdrawSuccess() : IMG.withdrawProcessing();
+      const edited = wd.message_id
+        ? await editPhoto(user.telegram_id, wd.message_id, photo, text)
+        : null;
+      if (!edited) await sendPhoto(user.telegram_id, photo, text);
     }
 
     await db().from("admin_actions").insert({

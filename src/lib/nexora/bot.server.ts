@@ -34,7 +34,6 @@ import {
   detachScreen,
   kb,
   renderScreen,
-  sendMessage,
   type Button,
 } from "./telegram.server";
 
@@ -238,6 +237,18 @@ async function enterTrade(u: LexoraUser, s: Settings) {
   const b = await getBalance(u.id);
   if (toCents(st.draft.amount) > toCents(b.balance)) return tradeScreen(u, s);
 
+  const { data: recent } = await db()
+    .from("trades")
+    .select("result")
+    .eq("user_id", u.id)
+    .eq("status", "settled")
+    .order("settled_at", { ascending: false })
+    .limit(50);
+  const outcomeCtx = {
+    settled: recent?.length ?? 0,
+    lastResult: recent?.[0]?.result ?? null,
+  };
+
   const now = Date.now();
   const { data: trade, error } = await db()
     .from("trades")
@@ -256,7 +267,7 @@ async function enterTrade(u: LexoraUser, s: Settings) {
       duration_minutes: st.plan.duration_minutes,
       potential_profit: st.draft.potential_profit,
       potential_loss: st.draft.potential_loss,
-      target_outcome: decideOutcome(st.plan.confidence, s),
+      target_outcome: decideOutcome(st.plan.confidence, s, outcomeCtx),
       message_id: u.screen_message_id,
       expires_at: new Date(now + st.plan.duration_minutes * 60000).toISOString(),
     })
