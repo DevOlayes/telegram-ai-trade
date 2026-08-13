@@ -120,25 +120,39 @@ export async function setCommands() {
   });
 }
 
+export type ScreenOpts = { photo?: string; parseMode?: "HTML" };
+
 /**
  * The single interactive "screen" message per user. Edited in place so the
- * chat never fills up with repeated menus.
+ * chat never fills up with repeated menus. When switching between a text and
+ * a photo screen the old message is replaced, since Telegram cannot convert
+ * one into the other.
  */
 export async function renderScreen(
   user: { id: string; telegram_id: number; screen_message_id: number | null },
   text: string,
   markup?: unknown,
+  opts: ScreenOpts = {},
 ) {
+  const { photo, parseMode } = opts;
+  const caption = photo && text.length > 1000 ? text.slice(0, 997) + "…" : text;
+
   if (user.screen_message_id) {
-    const ok = await editMessage(user.telegram_id, user.screen_message_id, text, markup);
+    const ok = photo
+      ? await editPhoto(user.telegram_id, user.screen_message_id, photo, caption, markup, parseMode)
+      : await editMessage(user.telegram_id, user.screen_message_id, text, markup, parseMode);
     if (ok) return user.screen_message_id;
+    await deleteMessage(user.telegram_id, user.screen_message_id);
   }
-  const sent = await sendMessage(user.telegram_id, text, markup);
+  const sent = photo
+    ? await sendPhoto(user.telegram_id, photo, caption, markup, parseMode)
+    : await sendMessage(user.telegram_id, text, markup, parseMode);
   const id = sent?.message_id ?? null;
   await db().from("users").update({ screen_message_id: id }).eq("id", user.id);
   user.screen_message_id = id;
   return id;
 }
+
 
 /** Detach the screen so its current content stays permanently in the chat. */
 export async function detachScreen(userId: string) {
