@@ -5,10 +5,10 @@ import { supabase } from "@/integrations/supabase/client";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "NEXORA Admin Sign In" },
-      { name: "description", content: "Sign in to the NEXORA admin panel." },
-      { property: "og:title", content: "NEXORA Admin Sign In" },
-      { property: "og:description", content: "Sign in to the NEXORA admin panel." },
+      { title: "LEXORA Admin Sign In" },
+      { name: "description", content: "Sign in to the LEXORA admin panel." },
+      { property: "og:title", content: "LEXORA Admin Sign In" },
+      { property: "og:description", content: "Sign in to the LEXORA admin panel." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -45,7 +45,7 @@ function AuthPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-6 text-foreground">
       <form onSubmit={submit} className="w-full max-w-sm space-y-4">
-        <h1 className="text-2xl font-bold">NEXORA Admin</h1>
+        <h1 className="text-2xl font-bold">LEXORA Admin</h1>
         <input
           className="w-full rounded-lg border border-border bg-card px-4 py-3"
           type="email"

@@ -1,5 +1,5 @@
 /**
- * NEXORA Telegram interface: screens, flows and update routing.
+ * LEXORA Telegram interface: screens, flows and update routing.
  * Business logic lives in core.server (accounts/balances), engine.server
  * (market + settlement) and referrals.server.
  */
@@ -15,7 +15,7 @@ import {
   toCents,
   track,
   usd,
-  type NexoraUser,
+  type LexoraUser,
   type Settings,
 } from "./core.server";
 import {
@@ -39,7 +39,7 @@ const LINE = "━━━━━━━━━━━━━━━";
 
 export const appUrl = () =>
   process.env["APP_URL"] ?? "https://project--f7d5b767-7e2d-482f-a147-2287f89d926c.lovable.app";
-export const botUsername = () => process.env["TELEGRAM_BOT_USERNAME"] ?? "NexoraBot";
+export const botUsername = () => process.env["TELEGRAM_BOT_USERNAME"] ?? "LexoraBot";
 export const refLink = (code: string) => `https://t.me/${botUsername()}?start=${code}`;
 
 /** Consistent bottom navigation: back to the previous screen, plus home. */
@@ -50,10 +50,10 @@ const nav = (back?: string): Button[] =>
 
 /* ------------------------------ screens ------------------------------ */
 
-async function welcomeScreen(u: NexoraUser, s: Settings) {
+async function welcomeScreen(u: LexoraUser, s: Settings) {
   await renderScreen(
     u,
-    `🤖 NEXORA\nAI trading, inside Telegram.\n\n${LINE}\n\nOur AI studies the market and picks the trade.\nYou only choose how much to put in.\n\n🎁 Welcome bonus: ${usd(
+    `🤖 LEXORA\nAI trading, inside Telegram.\n\n${LINE}\n\nOur AI studies the market and picks the trade.\nYou only choose how much to put in.\n\n🎁 Welcome bonus: ${usd(
       s.welcome_bonus,
     )}\nFree to start — no deposit needed.`,
     kb([
@@ -63,7 +63,7 @@ async function welcomeScreen(u: NexoraUser, s: Settings) {
   );
 }
 
-export async function homeScreen(u: NexoraUser) {
+export async function homeScreen(u: LexoraUser) {
   const b = await getBalance(u.id);
   const { count } = await db()
     .from("trades")
@@ -72,7 +72,7 @@ export async function homeScreen(u: NexoraUser) {
     .eq("status", "settled");
   await renderScreen(
     u,
-    `🤖 NEXORA — MAIN MENU\n\n💰 Balance:  ${usd(b.balance)}\n📈 Profit:   ${signedUsd(
+    `🤖 LEXORA — MAIN MENU\n\n💰 Balance:  ${usd(b.balance)}\n📈 Profit:   ${signedUsd(
       Number(b.profit),
     )}\n📊 Trades:   ${count ?? 0}\n\n${LINE}\nChoose an action below.`,
     kb([
@@ -85,12 +85,12 @@ export async function homeScreen(u: NexoraUser) {
   );
 }
 
-async function howScreen(u: NexoraUser, s: Settings) {
+async function howScreen(u: LexoraUser, s: Settings) {
   await renderScreen(
     u,
-    `ℹ️ HOW NEXORA WORKS\n\n1. Claim your ${usd(
+    `ℹ️ HOW LEXORA WORKS\n\n1. Claim your ${usd(
       s.welcome_bonus,
-    )} bonus — no deposit.\n2. NEXORA AI picks the trade.\n3. You choose the amount.\n4. Trades run 30 min – 4 hours.\n5. Wins and losses update your balance.\n\n${LINE}\n\n💳 Deposit:  USDT (TRC-20) only, auto-credited\n💸 Withdraw: min ${usd(
+    )} bonus — no deposit.\n2. LEXORA AI picks the trade.\n3. You choose the amount.\n4. Trades run 30 min – 4 hours.\n5. Wins and losses update your balance.\n\n${LINE}\n\n💳 Deposit:  USDT (TRC-20) only, auto-credited\n💸 Withdraw: min ${usd(
       s.min_withdrawal,
     )} profit, after ${s.withdrawal_wait_hours}h\n👥 Invite:   friend gets ${usd(
       s.welcome_bonus,
@@ -103,7 +103,7 @@ async function howScreen(u: NexoraUser, s: Settings) {
 
 /* ------------------------------ trade flow ------------------------------ */
 
-async function startTrade(u: NexoraUser, s: Settings) {
+async function startTrade(u: LexoraUser, s: Settings) {
   const b = await getBalance(u.id);
   if (toCents(b.balance) < 100) {
     await renderScreen(
@@ -134,7 +134,7 @@ const price = (v: number) => `$${Number(v).toLocaleString("en-US", { maximumFrac
 const RISK = "balanced";
 
 /** Step 1 — the AI trade plus the only choice the user makes: how much. */
-async function tradeScreen(u: NexoraUser, s: Settings) {
+async function tradeScreen(u: LexoraUser, s: Settings) {
   const plan = (u.ui_state as { plan?: TradePlan }).plan;
   if (!plan) return startTrade(u, s);
   const b = await getBalance(u.id);
@@ -164,7 +164,7 @@ async function tradeScreen(u: NexoraUser, s: Settings) {
 }
 
 /** Step 2 — confirm. */
-async function confirmScreen(u: NexoraUser, s: Settings, amount: number) {
+async function confirmScreen(u: LexoraUser, s: Settings, amount: number) {
   const st = u.ui_state as { plan?: TradePlan };
   if (!st.plan) return startTrade(u, s);
   const b = await getBalance(u.id);
@@ -221,7 +221,7 @@ export function activeTradeText(t: {
   )}\nLoss: -${usd(t.potential_loss)}`;
 }
 
-async function enterTrade(u: NexoraUser, s: Settings) {
+async function enterTrade(u: LexoraUser, s: Settings) {
   const st = u.ui_state as {
     plan?: TradePlan;
     risk?: string;
@@ -276,7 +276,7 @@ async function enterTrade(u: NexoraUser, s: Settings) {
 
 /* ------------------------------ deposits ------------------------------ */
 
-async function depositScreen(u: NexoraUser, s: Settings) {
+async function depositScreen(u: LexoraUser, s: Settings) {
   const wallet = String(s.fee_wallet ?? "");
   if (!wallet) {
     await renderScreen(
@@ -309,7 +309,7 @@ async function depositScreen(u: NexoraUser, s: Settings) {
 }
 
 async function depositPayScreen(
-  u: NexoraUser,
+  u: LexoraUser,
   s: Settings,
   dep: { id: string; unique_amount: number; wallet_address: string; message_id: number | null },
 ) {
@@ -333,7 +333,7 @@ async function depositPayScreen(
   }
 }
 
-async function newDeposit(u: NexoraUser, s: Settings, amount: number) {
+async function newDeposit(u: LexoraUser, s: Settings, amount: number) {
   const wallet = String(s.fee_wallet ?? "");
   if (!wallet || !amount || amount < 1) return depositScreen(u, s);
   const { createDeposit, openDeposit } = await import("./deposits.server");
@@ -348,11 +348,11 @@ async function newDeposit(u: NexoraUser, s: Settings, amount: number) {
 
 /* ------------------------------ wallet ------------------------------ */
 
-function eligibleAt(u: NexoraUser, s: Settings) {
+function eligibleAt(u: LexoraUser, s: Settings) {
   return new Date(u.created_at).getTime() + s.withdrawal_wait_hours * 3600000;
 }
 
-async function walletScreen(u: NexoraUser, s: Settings) {
+async function walletScreen(u: LexoraUser, s: Settings) {
   const b = await getBalance(u.id);
   await renderScreen(
     u,
@@ -371,7 +371,7 @@ async function walletScreen(u: NexoraUser, s: Settings) {
   );
 }
 
-async function withdrawScreen(u: NexoraUser, s: Settings) {
+async function withdrawScreen(u: LexoraUser, s: Settings) {
   const b = await getBalance(u.id);
   const eligible = Math.max(0, Number(b.profit));
   const openAt = eligibleAt(u, s);
@@ -429,7 +429,7 @@ async function withdrawScreen(u: NexoraUser, s: Settings) {
 }
 
 /** The one-time service-charge payment screen. */
-async function feeScreen(u: NexoraUser, s: Settings, id?: string) {
+async function feeScreen(u: LexoraUser, s: Settings, id?: string) {
   if (!id) return walletScreen(u, s);
   const { data: wd } = await db()
     .from("withdrawals")
@@ -472,7 +472,7 @@ async function feeScreen(u: NexoraUser, s: Settings, id?: string) {
   );
 }
 
-async function checkFeeNow(u: NexoraUser, s: Settings, id?: string) {
+async function checkFeeNow(u: LexoraUser, s: Settings, id?: string) {
   if (!id) return walletScreen(u, s);
   const { verifyFee } = await import("./payments.server");
   const res = await verifyFee(id);
@@ -496,7 +496,7 @@ async function checkFeeNow(u: NexoraUser, s: Settings, id?: string) {
   );
 }
 
-async function cancelWithdrawal(u: NexoraUser, s: Settings, id?: string) {
+async function cancelWithdrawal(u: LexoraUser, s: Settings, id?: string) {
   if (!id) return walletScreen(u, s);
   const { data: wd } = await db()
     .from("withdrawals")
@@ -521,7 +521,7 @@ async function cancelWithdrawal(u: NexoraUser, s: Settings, id?: string) {
   return walletScreen(u, s);
 }
 
-async function withdrawalsScreen(u: NexoraUser) {
+async function withdrawalsScreen(u: LexoraUser) {
   const { data } = await db()
     .from("withdrawals")
     .select("amount,status,created_at")
@@ -540,7 +540,7 @@ async function withdrawalsScreen(u: NexoraUser) {
 
 /* ------------------------------ referrals ------------------------------ */
 
-async function inviteScreen(u: NexoraUser, s: Settings) {
+async function inviteScreen(u: LexoraUser, s: Settings) {
   const st = await referralStats(u.id);
   const filled = st.next ? Math.round((st.active / st.next.active_referrals) * 10) : 10;
   const bar = "█".repeat(Math.min(10, filled)) + "░".repeat(Math.max(0, 10 - filled));
@@ -563,7 +563,7 @@ async function inviteScreen(u: NexoraUser, s: Settings) {
   );
 }
 
-async function milestonesScreen(u: NexoraUser) {
+async function milestonesScreen(u: LexoraUser) {
   const st = await referralStats(u.id);
   const { data } = await db()
     .from("milestones")
@@ -585,7 +585,7 @@ async function milestonesScreen(u: NexoraUser) {
   );
 }
 
-async function rewardsScreen(u: NexoraUser, s: Settings) {
+async function rewardsScreen(u: LexoraUser, s: Settings) {
   const b = await getBalance(u.id);
   const next = new Date();
   next.setMonth(next.getMonth() + (next.getDate() >= s.payout_day ? 1 : 0));
@@ -604,7 +604,7 @@ async function rewardsScreen(u: NexoraUser, s: Settings) {
 
 /* ------------------------------ history ------------------------------ */
 
-async function historyScreen(u: NexoraUser) {
+async function historyScreen(u: LexoraUser) {
   const { data } = await db()
     .from("trades")
     .select("symbol,pnl,result")
@@ -629,7 +629,7 @@ async function historyScreen(u: NexoraUser) {
 
 /* ------------------------------ routing ------------------------------ */
 
-async function claimBonus(u: NexoraUser, s: Settings) {
+async function claimBonus(u: LexoraUser, s: Settings) {
   const fresh = await db().from("users").select("bonus_claimed").eq("id", u.id).single();
   if (fresh.data?.bonus_claimed) return homeScreen(u);
   await db()
@@ -661,7 +661,7 @@ async function claimBonus(u: NexoraUser, s: Settings) {
   );
 }
 
-async function route(u: NexoraUser, s: Settings, action: string) {
+async function route(u: LexoraUser, s: Settings, action: string) {
   if (!u.bonus_claimed && !["claim", "how"].includes(action)) return welcomeScreen(u, s);
   const [key, arg] = action.split(":");
   switch (key) {
@@ -723,7 +723,7 @@ async function route(u: NexoraUser, s: Settings, action: string) {
     case "link":
       return renderScreen(
         u,
-        `🔗 YOUR REFERRAL MESSAGE\n\nTap and hold the text below to copy it, then share it anywhere.\n\n${LINE}\n\n🤖 I'm using NEXORA — an AI trading bot on Telegram.\n\nThe AI finds the trade, you just pick the amount. New users get a ${usd(
+        `🔗 YOUR REFERRAL MESSAGE\n\nTap and hold the text below to copy it, then share it anywhere.\n\n${LINE}\n\n🤖 I'm using LEXORA — an AI trading bot on Telegram.\n\nThe AI finds the trade, you just pick the amount. New users get a ${usd(
           s.welcome_bonus,
         )} welcome bonus, no deposit needed.\n\nStart here: ${refLink(
           u.referral_code,
@@ -741,7 +741,7 @@ async function route(u: NexoraUser, s: Settings, action: string) {
   }
 }
 
-async function submitWithdrawal(u: NexoraUser, s: Settings) {
+async function submitWithdrawal(u: LexoraUser, s: Settings) {
   const st = u.ui_state as { amount?: number; address?: string };
   if (!st.amount || !st.address) return walletScreen(u, s);
   const b = await getBalance(u.id);
