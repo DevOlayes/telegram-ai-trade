@@ -34,11 +34,17 @@ async function call<T = unknown>(method: string, body: unknown): Promise<T | nul
   }
 }
 
-export async function sendMessage(chatId: number, text: string, markup?: unknown) {
+export async function sendMessage(
+  chatId: number,
+  text: string,
+  markup?: unknown,
+  parseMode?: "HTML",
+) {
   return call<{ message_id: number }>("sendMessage", {
     chat_id: chatId,
     text,
     reply_markup: markup,
+    parse_mode: parseMode,
     disable_web_page_preview: true,
   });
 }
@@ -48,19 +54,54 @@ export async function editMessage(
   messageId: number,
   text: string,
   markup?: unknown,
+  parseMode?: "HTML",
 ) {
   return call("editMessageText", {
     chat_id: chatId,
     message_id: messageId,
     text,
     reply_markup: markup,
+    parse_mode: parseMode,
     disable_web_page_preview: true,
+  });
+}
+
+export async function sendPhoto(
+  chatId: number,
+  photo: string,
+  caption: string,
+  markup?: unknown,
+  parseMode?: "HTML",
+) {
+  return call<{ message_id: number }>("sendPhoto", {
+    chat_id: chatId,
+    photo,
+    caption,
+    parse_mode: parseMode,
+    reply_markup: markup,
+  });
+}
+
+export async function editPhoto(
+  chatId: number,
+  messageId: number,
+  photo: string,
+  caption: string,
+  markup?: unknown,
+  parseMode?: "HTML",
+) {
+  return call("editMessageMedia", {
+    chat_id: chatId,
+    message_id: messageId,
+    media: { type: "photo", media: photo, caption, parse_mode: parseMode },
+    reply_markup: markup,
   });
 }
 
 export async function deleteMessage(chatId: number, messageId: number) {
   return call("deleteMessage", { chat_id: chatId, message_id: messageId });
 }
+
 
 export async function answerCallback(id: string, text?: string) {
   return call("answerCallbackQuery", { callback_query_id: id, text, show_alert: false });
