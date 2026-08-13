@@ -24,10 +24,13 @@ import {
   sizeTrade,
   type TradePlan,
 } from "./engine.server";
+import { SHARE_CAPTION } from "./copy";
+import { IMG } from "./images.server";
 import { qualifyReferral, referralStats } from "./referrals.server";
 import {
   answerCallback,
   deleteMessage,
+  sendPhoto,
   detachScreen,
   kb,
   renderScreen,
@@ -60,6 +63,7 @@ async function welcomeScreen(u: LexoraUser, s: Settings) {
       [{ text: `🎁 CLAIM ${usd(s.welcome_bonus)} BONUS`, data: "claim" }],
       [{ text: "ℹ️ HOW IT WORKS", data: "how" }],
     ]),
+    { photo: IMG.welcome() },
   );
 }
 
@@ -72,9 +76,11 @@ export async function homeScreen(u: LexoraUser) {
     .eq("status", "settled");
   await renderScreen(
     u,
-    `🤖 LEXORA — MAIN MENU\n\n💰 Balance:  ${usd(b.balance)}\n📈 Profit:   ${signedUsd(
-      Number(b.profit),
-    )}\n📊 Trades:   ${count ?? 0}\n\n${LINE}\nChoose an action below.`,
+    `🤖 LEXORA — MAIN MENU\n\n💰 Total balance:        ${usd(
+      b.balance,
+    )}\n🎁 Bonus (locked):       ${usd(b.bonus)}\n💸 Withdrawable profit:  ${usd(
+      Math.max(0, Number(b.profit)),
+    )}\n📊 Trades:               ${count ?? 0}\n\n${LINE}\nOnly withdrawable profit can be paid out — the bonus stays in your account for trading.`,
     kb([
       [{ text: "🚀 TRADE", data: "trade" }],
       [{ text: "💳 DEPOSIT", data: "deposit" }, { text: "💸 WITHDRAW", data: "wd" }],
@@ -82,6 +88,7 @@ export async function homeScreen(u: LexoraUser) {
       [{ text: "💰 WALLET", data: "wallet" }, { text: "📜 HISTORY", data: "history" }],
       [{ text: "ℹ️ HOW IT WORKS", data: "how" }],
     ]),
+    { photo: IMG.logo() },
   );
 }
 
@@ -305,6 +312,7 @@ async function depositScreen(u: LexoraUser, s: Settings) {
       [{ text: "✏️ OTHER AMOUNT", data: "depcustom" }],
       nav(),
     ]),
+    { photo: IMG.deposit() },
   );
 }
 
@@ -322,6 +330,7 @@ async function depositPayScreen(
       [{ text: "❌ CANCEL DEPOSIT", data: `depcancel:${dep.id}` }],
       nav(),
     ]),
+    { photo: IMG.deposit() },
   );
   if (!dep.message_id && u.screen_message_id) {
     await db()
@@ -356,13 +365,19 @@ async function walletScreen(u: LexoraUser, s: Settings) {
   const b = await getBalance(u.id);
   await renderScreen(
     u,
-    `💰 MY WALLET\n\nBalance:   ${usd(b.balance)}\n🎁 Bonus:   ${usd(
-      b.bonus,
-    )}\n📈 Profit:  ${signedUsd(Number(b.profit))}\n💸 Eligible: ${usd(
+    `💰 MY WALLET\n\n💰 Total balance:        ${usd(
+      b.balance,
+    )}\n🎁 Bonus (not withdrawable): ${usd(b.bonus)}\n📈 Trading profit:        ${signedUsd(
+      Number(b.profit),
+    )}\n💸 Withdrawable profit:   ${usd(
       Math.max(0, Number(b.profit)),
-    )}\n\n${LINE}\nWithdrawals: min ${usd(s.min_withdrawal)} profit, ${
-      s.withdrawal_wait_hours
-    }h after registration.`,
+    )}\n👥 Referral rewards:      ${usd(
+      b.referral_balance,
+    )}\n\n${LINE}\nOnly withdrawable profit can be paid out — the ${usd(
+      s.welcome_bonus,
+    )} bonus stays in the account for trading.\nWithdrawals: min ${usd(
+      s.min_withdrawal,
+    )} profit, ${s.withdrawal_wait_hours}h after registration.`,
     kb([
       [{ text: "💳 DEPOSIT", data: "deposit" }, { text: "💸 WITHDRAW", data: "wd" }],
       [{ text: "📜 WITHDRAWALS", data: "wdlist" }],
@@ -658,6 +673,7 @@ async function claimBonus(u: LexoraUser, s: Settings) {
       [{ text: "🚀 START TRADING", data: "trade" }],
       [{ text: "👥 INVITE & EARN", data: "invite" }],
     ]),
+    { photo: IMG.welcome() },
   );
 }
 
@@ -720,16 +736,34 @@ async function route(u: LexoraUser, s: Settings, action: string) {
       return submitWithdrawal(u, s);
     case "invite":
       return inviteScreen(u, s);
-    case "link":
+    case "link": {
+      const message = `${SHARE_CAPTION}\n${refLink(u.referral_code)}`;
+      const esc = (t: string) =>
+        t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
       return renderScreen(
         u,
-        `🔗 YOUR REFERRAL MESSAGE\n\nTap and hold the text below to copy it, then share it anywhere.\n\n${LINE}\n\n🤖 I'm using LEXORA — an AI trading bot on Telegram.\n\nThe AI finds the trade, you just pick the amount. New users get a ${usd(
-          s.welcome_bonus,
-        )} welcome bonus, no deposit needed.\n\nStart here: ${refLink(
-          u.referral_code,
-        )}\n\n${LINE}\nYou earn ${usd(s.referral_reward)} for every friend who becomes active.`,
-        kb([nav("invite")]),
+        `🔗 <b>YOUR SHARE MESSAGE</b>\n\nTap the block below to copy the full caption <i>and</i> your link, then paste it anywhere.\n\n<pre>${esc(
+          message,
+        )}</pre>\n\nYou earn ${usd(s.referral_reward)} for every friend who becomes active.`,
+        kb([
+          [{ text: "🔗 COPY LINK ONLY", data: "linkonly" }],
+          nav("invite"),
+        ]),
+        { parseMode: "HTML" },
       );
+    }
+    case "linkonly": {
+      const esc = (t: string) =>
+        t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      return renderScreen(
+        u,
+        `🔗 <b>YOUR REFERRAL LINK</b>\n\nTap to copy:\n\n<pre>${esc(
+          refLink(u.referral_code),
+        )}</pre>`,
+        kb([[{ text: "📝 FULL SHARE MESSAGE", data: "link" }], nav("invite")]),
+        { parseMode: "HTML" },
+      );
+    }
     case "ms":
       return milestonesScreen(u);
     case "rewards":
@@ -800,8 +834,9 @@ async function submitWithdrawal(u: LexoraUser, s: Settings) {
     return;
   }
 
-  const msg = await sendMessage(
+  const msg = await sendPhoto(
     u.telegram_id,
+    IMG.withdrawProcessing(),
     `⏳ WITHDRAWAL PROCESSING\n\nAmount:  ${usd(
       st.amount,
     )}\nNetwork: TRON (TRC-20)\nWallet:\n${st.address}\n\nStatus:  Pending`,
