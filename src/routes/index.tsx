@@ -1,18 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
+import banner from "@/assets/banner.jpg.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "NEXORA — AI-Powered Trading on Telegram" },
+      { title: "LEXORA — AI-Powered Trading on Telegram" },
       {
         name: "description",
         content:
-          "NEXORA is an AI trading bot on Telegram. Claim a $25 welcome bonus, no deposit required, and let the AI pick your trades.",
+          "LEXORA is an AI trading bot on Telegram. Claim a $25 welcome bonus, no deposit required, and let the AI pick your trades.",
       },
-      { property: "og:title", content: "NEXORA — AI-Powered Trading on Telegram" },
+      { property: "og:title", content: "LEXORA — AI-Powered Trading on Telegram" },
       {
         property: "og:description",
-        content: "Claim your $25 welcome bonus and trade with NEXORA AI directly in Telegram.",
+        content: "Claim your $25 welcome bonus and trade with LEXORA AI directly in Telegram.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -27,15 +28,21 @@ function Index() {
   return (
     <main className="min-h-screen bg-background px-6 py-16 text-foreground">
       <div className="mx-auto flex max-w-md flex-col gap-8">
+        <img
+          src={banner.url}
+          alt="LEXORA — AI trading on Telegram with a $25 welcome bonus"
+          className="w-full rounded-2xl border border-border"
+        />
+
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Nexora</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Lexora</p>
           <h1 className="mt-3 text-4xl font-bold leading-tight">
             AI-Powered Trading.
             <br />
             Directly on Telegram.
           </h1>
           <p className="mt-4 text-muted-foreground">
-            NEXORA AI decides what trade to take. You decide how much to risk.
+            LEXORA AI decides what trade to take. You decide how much to risk.
           </p>
         </div>
 
@@ -52,7 +59,7 @@ function Index() {
           href={`https://t.me/${BOT}`}
           className="inline-flex items-center justify-center rounded-xl bg-primary px-6 py-4 font-semibold text-primary-foreground"
         >
-          Open NEXORA in Telegram
+          Open LEXORA in Telegram
         </a>
 
         <p className="text-xs text-muted-foreground">
