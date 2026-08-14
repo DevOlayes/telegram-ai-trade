@@ -14,6 +14,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ShareRouteImport } from './routes/share'
 import { Route as ApiPublicNexoraTickRouteImport } from './routes/api/public/nexora/tick'
+import { Route as ApiPublicTelegramAnnounceRouteImport } from './routes/api/public/telegram/announce'
 import { Route as ApiPublicTelegramWebhookRouteImport } from './routes/api/public/telegram/webhook'
 
 const IndexRoute = IndexRouteImport.update({
@@ -41,6 +42,12 @@ const ApiPublicNexoraTickRoute = ApiPublicNexoraTickRouteImport.update({
   path: '/api/public/nexora/tick',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicTelegramAnnounceRoute =
+  ApiPublicTelegramAnnounceRouteImport.update({
+    id: '/api/public/telegram/announce',
+    path: '/api/public/telegram/announce',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicTelegramWebhookRoute =
   ApiPublicTelegramWebhookRouteImport.update({
     id: '/api/public/telegram/webhook',
@@ -54,6 +61,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/share': typeof ShareRoute
   '/api/public/nexora/tick': typeof ApiPublicNexoraTickRoute
+  '/api/public/telegram/announce': typeof ApiPublicTelegramAnnounceRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRoutesByTo {
@@ -62,6 +70,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/share': typeof ShareRoute
   '/api/public/nexora/tick': typeof ApiPublicNexoraTickRoute
+  '/api/public/telegram/announce': typeof ApiPublicTelegramAnnounceRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRoutesById {
@@ -71,6 +80,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/share': typeof ShareRoute
   '/api/public/nexora/tick': typeof ApiPublicNexoraTickRoute
+  '/api/public/telegram/announce': typeof ApiPublicTelegramAnnounceRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRouteTypes {
@@ -81,6 +91,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/share'
     | '/api/public/nexora/tick'
+    | '/api/public/telegram/announce'
     | '/api/public/telegram/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -89,6 +100,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/share'
     | '/api/public/nexora/tick'
+    | '/api/public/telegram/announce'
     | '/api/public/telegram/webhook'
   id:
     | '__root__'
@@ -97,6 +109,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/share'
     | '/api/public/nexora/tick'
+    | '/api/public/telegram/announce'
     | '/api/public/telegram/webhook'
   fileRoutesById: FileRoutesById
 }
@@ -106,6 +119,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ShareRoute: typeof ShareRoute
   ApiPublicNexoraTickRoute: typeof ApiPublicNexoraTickRoute
+  ApiPublicTelegramAnnounceRoute: typeof ApiPublicTelegramAnnounceRoute
   ApiPublicTelegramWebhookRoute: typeof ApiPublicTelegramWebhookRoute
 }
 
@@ -146,6 +160,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicNexoraTickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/telegram/announce': {
+      id: '/api/public/telegram/announce'
+      path: '/api/public/telegram/announce'
+      fullPath: '/api/public/telegram/announce'
+      preLoaderRoute: typeof ApiPublicTelegramAnnounceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/telegram/webhook': {
       id: '/api/public/telegram/webhook'
       path: '/api/public/telegram/webhook'
@@ -162,6 +183,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ShareRoute: ShareRoute,
   ApiPublicNexoraTickRoute: ApiPublicNexoraTickRoute,
+  ApiPublicTelegramAnnounceRoute: ApiPublicTelegramAnnounceRoute,
   ApiPublicTelegramWebhookRoute: ApiPublicTelegramWebhookRoute,
 }
 export const routeTree = rootRouteImport
