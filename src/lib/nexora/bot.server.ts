@@ -81,7 +81,7 @@ export async function homeScreen(u: LexoraUser) {
       Math.max(0, Number(b.profit)),
     )}\n📊 Trades:               ${count ?? 0}\n\n${LINE}\nOnly withdrawable profit can be paid out — the bonus stays in your account for trading.`,
     kb([
-      [{ text: "🚀 TRADE", data: "trade" }],
+      [{ text: "📈 TRADING", data: "trade" }],
       [{ text: "💳 DEPOSIT", data: "deposit" }, { text: "💸 WITHDRAW", data: "wd" }],
       [{ text: "👥 INVITE & EARN", data: "invite" }],
       [{ text: "💰 WALLET", data: "wallet" }, { text: "📜 HISTORY", data: "history" }],
@@ -120,7 +120,7 @@ async function startTrade(u: LexoraUser, s: Settings) {
       kb([
         [{ text: "💳 DEPOSIT", data: "deposit" }],
         [{ text: "👥 INVITE & EARN", data: "invite" }],
-        nav(),
+        nav("trade"),
       ]),
     );
     return;
@@ -163,8 +163,8 @@ async function tradeScreen(u: LexoraUser, s: Settings) {
         { text: `${usd(v)}${v === rec.amount ? "  ⭐ AI PICK" : ""}`, data: `amt:${v}` },
       ]),
       [{ text: "✏️ OTHER AMOUNT", data: "custom" }],
-      [{ text: "🔄 NEW TRADE", data: "trade" }],
-      nav(),
+      [{ text: "🔄 NEW TRADE", data: "newtrade" }],
+      nav("trade"),
     ]),
   );
 }
@@ -628,6 +628,59 @@ async function rewardsScreen(u: LexoraUser, s: Settings) {
   );
 }
 
+/* ------------------------------ trading menu ------------------------------ */
+
+async function tradeMenuScreen(u: LexoraUser) {
+  const b = await getBalance(u.id);
+  const { count } = await db()
+    .from("trades")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", u.id)
+    .eq("status", "open");
+  await renderScreen(
+    u,
+    `📈 TRADING\n\n💰 Balance:       ${usd(b.balance)}\n⚡ Active trades: ${
+      count ?? 0
+    }\n\n${LINE}\nChoose an option below.`,
+    kb([
+      [{ text: "🚀 START TRADE", data: "newtrade" }],
+      [{ text: "⚡ ACTIVE TRADES", data: "active" }],
+      [{ text: "📊 TRADE HISTORY", data: "history" }],
+      [{ text: "⬅️ BACK", data: "home" }],
+    ]),
+  );
+}
+
+async function activeTradesScreen(u: LexoraUser) {
+  const { data } = await db()
+    .from("trades")
+    .select("symbol,direction,amount,entry_price,current_price,expires_at")
+    .eq("user_id", u.id)
+    .eq("status", "open")
+    .order("created_at", { ascending: false })
+    .limit(10);
+  const trades = data ?? [];
+  const rows = trades
+    .map((t) => {
+      const mins = Math.max(
+        0,
+        Math.round((new Date(t.expires_at as string).getTime() - Date.now()) / 60000),
+      );
+      const left = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
+      return `${dirIcon(String(t.direction))} ${t.symbol}  ${usd(
+        Number(t.amount),
+      )}\nEntry: ${price(Number(t.entry_price))}   Now: ${price(
+        Number(t.current_price),
+      )}\n⏱ Left: ${left}`;
+    })
+    .join(`\n${LINE}\n`);
+  await renderScreen(
+    u,
+    trades.length ? `⚡ ACTIVE TRADES\n\n${rows}` : "⚡ No active trades",
+    kb([[{ text: "🚀 START TRADE", data: "newtrade" }], [{ text: "⬅️ BACK", data: "trade" }]]),
+  );
+}
+
 /* ------------------------------ history ------------------------------ */
 
 async function historyScreen(u: LexoraUser) {
@@ -642,14 +695,21 @@ async function historyScreen(u: LexoraUser) {
   const wins = trades.filter((t) => t.result === "win").length;
   const total = trades.reduce((acc, t) => acc + toCents(t.pnl ?? 0), 0);
   const rows = trades
-    .map((t) => `${t.result === "win" ? "🟢" : "🔴"} ${t.symbol}  ${signedUsd(Number(t.pnl ?? 0))}`)
-    .join("\n");
+    .map(
+      (t) =>
+        `${t.result === "win" ? "📈" : "📉"} ${t.symbol}\n${
+          t.result === "win" ? "✅ WON" : "❌ LOST"
+        }   ${signedUsd(Number(t.pnl ?? 0))}`,
+    )
+    .join("\n\n");
   await renderScreen(
     u,
-    `📜 TRADE HISTORY\n\n${rows || "No trades yet."}\n\n${LINE}\nTrades: ${trades.length}   Wins: ${wins}   Losses: ${
+    `📊 TRADE HISTORY\n\n${rows || "No completed trades yet."}\n\n${LINE}\nTrades: ${
+      trades.length
+    }   Wins: ${wins}   Losses: ${
       trades.length - wins
     }\nProfit: ${signedUsd(fromCents(total))}`,
-    kb([[{ text: "🚀 TRADE", data: "trade" }], nav()]),
+    kb([[{ text: "🚀 START TRADE", data: "newtrade" }], [{ text: "⬅️ BACK", data: "trade" }]]),
   );
 }
 
