@@ -432,7 +432,7 @@ async function withdrawScreen(u: LexoraUser, s: Settings) {
         s.service_fee,
       )} service charge applies to your first withdrawal.`,
       kb([
-        [{ text: "🚀 TRADE", data: "trade" }],
+        [{ text: "🚀 START TRADE", data: "newtrade" }],
         [{ text: "👥 INVITE & EARN", data: "invite" }],
         nav("wallet"),
       ]),
@@ -741,7 +741,7 @@ async function claimBonus(u: LexoraUser, s: Settings) {
       s.welcome_bonus,
     )}\n\n${LINE}\nYou're all set — let the AI find your first trade.`,
     kb([
-      [{ text: "🚀 START TRADING", data: "trade" }],
+      [{ text: "🚀 START TRADING", data: "newtrade" }],
       [{ text: "👥 INVITE & EARN", data: "invite" }],
     ]),
     { photo: IMG.welcome() },
@@ -759,7 +759,11 @@ async function route(u: LexoraUser, s: Settings, action: string) {
     case "claim":
       return claimBonus(u, s);
     case "trade":
+      return tradeMenuScreen(u);
+    case "newtrade":
       return startTrade(u, s);
+    case "active":
+      return activeTradesScreen(u);
     case "setup":
     case "amount":
       return tradeScreen(u, s);
