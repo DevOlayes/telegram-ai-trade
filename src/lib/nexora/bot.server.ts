@@ -39,6 +39,10 @@ import {
 
 const LINE = "━━━━━━━━━━━━━━━";
 
+/** The welcome bonus is one-time: once spent on a trade it reads as USED. */
+const bonusLine = (u: LexoraUser, bonus: number | string) =>
+  toCents(bonus) > 0 ? `${usd(bonus)} (not withdrawable)` : u.bonus_used ? "USED" : usd(0);
+
 export const appUrl = () =>
   process.env["APP_URL"] ?? "https://project--f7d5b767-7e2d-482f-a147-2287f89d926c.lovable.app";
 export const botUsername = () => process.env["TELEGRAM_BOT_USERNAME"] ?? "nexoraiaxbot";
@@ -49,6 +53,103 @@ const nav = (back?: string): Button[] =>
   back
     ? [{ text: "🔙 BACK", data: back }, { text: "🏠 MENU", data: "home" }]
     : [{ text: "🏠 MENU", data: "home" }];
+
+/* --------------------- referral share unlock (24h access) --------------------- */
+
+const PLATFORMS = [
+  { key: "whatsapp", label: "🟢 SHARE ON WHATSAPP", name: "WhatsApp" },
+  { key: "telegram", label: "✈️ SHARE ON TELEGRAM", name: "Telegram" },
+  { key: "x", label: "𝕏 SHARE ON X", name: "X" },
+  { key: "facebook", label: "🔵 SHARE ON FACEBOOK", name: "Facebook" },
+] as const;
+
+const shareText = (link: string) =>
+  `🚀 Discover LEXORA — AI-powered trading on Telegram.\n\n🎁 Start with a $25 FREE Welcome Bonus.\n\n👇 Get started:\n${link}`;
+
+function shareUrl(platform: string, link: string) {
+  const text = encodeURIComponent(shareText(link));
+  const url = encodeURIComponent(link);
+  switch (platform) {
+    case "whatsapp":
+      return `https://wa.me/?text=${text}`;
+    case "telegram":
+      return `https://t.me/share/url?url=${url}&text=${text}`;
+    case "x":
+      return `https://twitter.com/intent/tweet?text=${text}`;
+    default:
+      return `https://www.facebook.com/sharer/sharer.php?u=${url}&quote=${text}`;
+  }
+}
+
+export const tradingUnlocked = (u: LexoraUser) =>
+  !!u.trade_unlock_until && new Date(u.trade_unlock_until).getTime() > Date.now();
+
+async function sharedList(u: LexoraUser): Promise<string[]> {
+  const { data } = await db()
+    .from("users")
+    .select("share_platforms,trade_unlock_until")
+    .eq("id", u.id)
+    .maybeSingle();
+  u.trade_unlock_until = (data?.trade_unlock_until as string | null) ?? null;
+  const raw = data?.share_platforms;
+  return Array.isArray(raw) ? (raw as string[]) : [];
+}
+
+/** The gate shown when a user without active access opens trading. */
+async function unlockScreen(u: LexoraUser, note?: string) {
+  const done = await sharedList(u);
+  const link = refLink(u.referral_code);
+  const rows: Button[][] = [];
+  for (const p of PLATFORMS) {
+    if (done.includes(p.key)) {
+      rows.push([{ text: `✅ ${p.name} — SHARED`, data: "unlock" }]);
+    } else {
+      rows.push([
+        { text: p.label, url: shareUrl(p.key, link) },
+        { text: "✅ I SHARED IT", data: `shr:${p.key}` },
+      ]);
+    }
+  }
+  rows.push([{ text: "📋 COPY REFERRAL LINK", data: "linkonly" }]);
+  rows.push([{ text: "⬅️ BACK", data: "home" }]);
+  await renderScreen(
+    u,
+    `🔒 UNLOCK YOUR NEXT TRADE\n\nShare LEXORA on 2 social platforms to unlock 24 hours of trading access.\n\n🎁 Your friends can get a $25 FREE Welcome Bonus.\n\n${LINE}\nChoose any 2 — tap the platform, share, then tap “✅ I SHARED IT”.\n\nProgress: ${
+      done.length
+    } / 2${note ? `\n\n${note}` : ""}`,
+    kb(rows),
+  );
+}
+
+async function confirmShare(u: LexoraUser, platform?: string) {
+  const valid = PLATFORMS.some((p) => p.key === platform);
+  if (!valid) return unlockScreen(u);
+  const done = await sharedList(u);
+  if (done.includes(platform!)) {
+    return unlockScreen(u, "⚠️ That platform is already counted — choose a different one.");
+  }
+  const next = [...done, platform!];
+  if (next.length < 2) {
+    await db().from("users").update({ share_platforms: next }).eq("id", u.id);
+    u.share_platforms = next;
+    return unlockScreen(u, "✅ Counted. One more platform to go.");
+  }
+  const until = new Date(Date.now() + 24 * 3600000).toISOString();
+  await db()
+    .from("users")
+    .update({ share_platforms: [], trade_unlock_until: until })
+    .eq("id", u.id);
+  u.share_platforms = [];
+  u.trade_unlock_until = until;
+  await track(u.id, "trading_unlocked", { platforms: next });
+  await renderScreen(
+    u,
+    `🎉 TRADING UNLOCKED\n\nProgress: 2 / 2 ✅\n\nYour trading access is unlocked for 24 hours.`,
+    kb([[{ text: "🚀 START TRADING", data: "newtrade" }], nav()]),
+  );
+}
+
+
 
 /* ------------------------------ screens ------------------------------ */
 
@@ -77,9 +178,10 @@ export async function homeScreen(u: LexoraUser) {
     u,
     `🤖 LEXORA — MAIN MENU\n\n💰 Total balance:        ${usd(
       b.balance,
-    )}\n🎁 Bonus (locked):       ${usd(b.bonus)}\n💸 Withdrawable profit:  ${usd(
+    )}\n🎁 Welcome bonus:        ${bonusLine(u, b.bonus)}\n💸 Withdrawable profit:  ${usd(
       Math.max(0, Number(b.profit)),
-    )}\n📊 Trades:               ${count ?? 0}\n\n${LINE}\nOnly withdrawable profit can be paid out — the bonus stays in your account for trading.`,
+    )}\n📊 Trades:               ${count ?? 0}\n\n${LINE}\nOnly withdrawable profit can be paid out — the welcome bonus is one-time trading capital.`,
+
     kb([
       [{ text: "📈 TRADING", data: "trade" }],
       [{ text: "💳 DEPOSIT", data: "deposit" }, { text: "💸 WITHDRAW", data: "wd" }],
@@ -275,11 +377,23 @@ async function enterTrade(u: LexoraUser, s: Settings) {
     .single();
   if (error) throw error;
 
-  await applyBalance(u.id, { balance: -st.draft.amount }, {
+  // The welcome bonus is one-time capital: whatever part of it funds a trade is
+  // consumed and marked used, so the promotional $25 can never be reused.
+  const bonusLeft = Number(b.bonus ?? 0);
+  const bonusSpent = Math.min(bonusLeft, st.draft.amount);
+  await applyBalance(u.id, { balance: -st.draft.amount, bonus: -bonusSpent }, {
     kind: "trade_open",
     amount: -st.draft.amount,
     ref_id: trade.id,
   });
+  if (bonusSpent > 0 && toCents(bonusLeft) - toCents(bonusSpent) <= 0) {
+    await db()
+      .from("users")
+      .update({ bonus_used: true, bonus_used_at: new Date().toISOString() })
+      .eq("id", u.id);
+    u.bonus_used = true;
+  }
+
   await track(u.id, "trade_opened", {
     symbol: trade.symbol,
     amount: trade.amount,
@@ -378,7 +492,7 @@ async function walletScreen(u: LexoraUser, s: Settings) {
     u,
     `💰 MY WALLET\n\n💰 Total balance:        ${usd(
       b.balance,
-    )}\n🎁 Bonus (not withdrawable): ${usd(b.bonus)}\n📈 Trading profit:        ${signedUsd(
+    )}\n🎁 Welcome bonus:         ${bonusLine(u, b.bonus)}\n📈 Trading profit:        ${signedUsd(
       Number(b.profit),
     )}\n💸 Withdrawable profit:   ${usd(
       Math.max(0, Number(b.profit)),
@@ -758,12 +872,19 @@ async function route(u: LexoraUser, s: Settings, action: string) {
       return howScreen(u, s);
     case "claim":
       return claimBonus(u, s);
+    case "unlock":
+      return unlockScreen(u);
+    case "shr":
+      return confirmShare(u, arg);
     case "trade":
+      if (!tradingUnlocked(u)) return unlockScreen(u);
       return tradeMenuScreen(u);
     case "newtrade":
+      if (!tradingUnlocked(u)) return unlockScreen(u);
       return startTrade(u, s);
     case "active":
       return activeTradesScreen(u);
+
     case "setup":
     case "amount":
       return tradeScreen(u, s);
@@ -800,7 +921,9 @@ async function route(u: LexoraUser, s: Settings, action: string) {
         kb([nav("setup")]),
       );
     case "enter":
+      if (!tradingUnlocked(u)) return unlockScreen(u);
       return enterTrade(u, s);
+
     case "wallet":
       return walletScreen(u, s);
     case "wd":
