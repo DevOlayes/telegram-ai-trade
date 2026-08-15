@@ -80,11 +80,15 @@ export type LexoraUser = {
   referral_code: string;
   referred_by: string | null;
   bonus_claimed: boolean;
+  bonus_used?: boolean;
+  trade_unlock_until?: string | null;
+  share_platforms?: string[] | null;
   status: string;
   screen_message_id: number | null;
   ui_state: Record<string, unknown>;
   created_at: string;
 };
+
 
 export type Balance = {
   user_id: string;
