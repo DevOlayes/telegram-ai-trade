@@ -506,6 +506,8 @@ export type Database = {
           bonus_amount: number
           bonus_claimed: boolean
           bonus_claimed_at: string | null
+          bonus_used: boolean
+          bonus_used_at: string | null
           created_at: string
           first_name: string | null
           flagged_reason: string | null
@@ -515,8 +517,10 @@ export type Database = {
           referral_source: string | null
           referred_by: string | null
           screen_message_id: number | null
+          share_platforms: Json
           status: string
           telegram_id: number
+          trade_unlock_until: string | null
           ui_state: Json
           username: string | null
         }
@@ -524,6 +528,8 @@ export type Database = {
           bonus_amount?: number
           bonus_claimed?: boolean
           bonus_claimed_at?: string | null
+          bonus_used?: boolean
+          bonus_used_at?: string | null
           created_at?: string
           first_name?: string | null
           flagged_reason?: string | null
@@ -533,8 +539,10 @@ export type Database = {
           referral_source?: string | null
           referred_by?: string | null
           screen_message_id?: number | null
+          share_platforms?: Json
           status?: string
           telegram_id: number
+          trade_unlock_until?: string | null
           ui_state?: Json
           username?: string | null
         }
@@ -542,6 +550,8 @@ export type Database = {
           bonus_amount?: number
           bonus_claimed?: boolean
           bonus_claimed_at?: string | null
+          bonus_used?: boolean
+          bonus_used_at?: string | null
           created_at?: string
           first_name?: string | null
           flagged_reason?: string | null
@@ -551,8 +561,10 @@ export type Database = {
           referral_source?: string | null
           referred_by?: string | null
           screen_message_id?: number | null
+          share_platforms?: Json
           status?: string
           telegram_id?: number
+          trade_unlock_until?: string | null
           ui_state?: Json
           username?: string | null
         }
