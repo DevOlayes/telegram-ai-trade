@@ -174,9 +174,10 @@ export async function homeScreen(u: LexoraUser) {
     u,
     `🤖 LEXORA — MAIN MENU\n\n💰 Total balance:        ${usd(
       b.balance,
-    )}\n🎁 Bonus (locked):       ${usd(b.bonus)}\n💸 Withdrawable profit:  ${usd(
+    )}\n🎁 Welcome bonus:        ${bonusLine(u, b.bonus)}\n💸 Withdrawable profit:  ${usd(
       Math.max(0, Number(b.profit)),
-    )}\n📊 Trades:               ${count ?? 0}\n\n${LINE}\nOnly withdrawable profit can be paid out — the bonus stays in your account for trading.`,
+    )}\n📊 Trades:               ${count ?? 0}\n\n${LINE}\nOnly withdrawable profit can be paid out — the welcome bonus is one-time trading capital.`,
+
     kb([
       [{ text: "📈 TRADING", data: "trade" }],
       [{ text: "💳 DEPOSIT", data: "deposit" }, { text: "💸 WITHDRAW", data: "wd" }],
