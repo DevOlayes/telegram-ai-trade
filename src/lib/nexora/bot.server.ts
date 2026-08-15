@@ -867,12 +867,19 @@ async function route(u: LexoraUser, s: Settings, action: string) {
       return howScreen(u, s);
     case "claim":
       return claimBonus(u, s);
+    case "unlock":
+      return unlockScreen(u);
+    case "shr":
+      return confirmShare(u, arg);
     case "trade":
+      if (!tradingUnlocked(u)) return unlockScreen(u);
       return tradeMenuScreen(u);
     case "newtrade":
+      if (!tradingUnlocked(u)) return unlockScreen(u);
       return startTrade(u, s);
     case "active":
       return activeTradesScreen(u);
+
     case "setup":
     case "amount":
       return tradeScreen(u, s);
