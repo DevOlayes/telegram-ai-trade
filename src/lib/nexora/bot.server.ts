@@ -41,7 +41,7 @@ const LINE = "━━━━━━━━━━━━━━━";
 
 export const appUrl = () =>
   process.env["APP_URL"] ?? "https://project--f7d5b767-7e2d-482f-a147-2287f89d926c.lovable.app";
-export const botUsername = () => process.env["TELEGRAM_BOT_USERNAME"] ?? "LexoraBot";
+export const botUsername = () => process.env["TELEGRAM_BOT_USERNAME"] ?? "nexoraiaxbot";
 export const refLink = (code: string) => `https://t.me/${botUsername()}?start=${code}`;
 
 /** Consistent bottom navigation: back to the previous screen, plus home. */
