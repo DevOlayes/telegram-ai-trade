@@ -39,6 +39,10 @@ import {
 
 const LINE = "━━━━━━━━━━━━━━━";
 
+/** The welcome bonus is one-time: once spent on a trade it reads as USED. */
+const bonusLine = (u: LexoraUser, bonus: number | string) =>
+  toCents(bonus) > 0 ? `${usd(bonus)} (not withdrawable)` : u.bonus_used ? "USED" : usd(0);
+
 export const appUrl = () =>
   process.env["APP_URL"] ?? "https://project--f7d5b767-7e2d-482f-a147-2287f89d926c.lovable.app";
 export const botUsername = () => process.env["TELEGRAM_BOT_USERNAME"] ?? "nexoraiaxbot";
