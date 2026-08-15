@@ -372,11 +372,23 @@ async function enterTrade(u: LexoraUser, s: Settings) {
     .single();
   if (error) throw error;
 
-  await applyBalance(u.id, { balance: -st.draft.amount }, {
+  // The welcome bonus is one-time capital: whatever part of it funds a trade is
+  // consumed and marked used, so the promotional $25 can never be reused.
+  const bonusLeft = Number(b.bonus ?? 0);
+  const bonusSpent = Math.min(bonusLeft, st.draft.amount);
+  await applyBalance(u.id, { balance: -st.draft.amount, bonus: -bonusSpent }, {
     kind: "trade_open",
     amount: -st.draft.amount,
     ref_id: trade.id,
   });
+  if (bonusSpent > 0 && toCents(bonusLeft) - toCents(bonusSpent) <= 0) {
+    await db()
+      .from("users")
+      .update({ bonus_used: true, bonus_used_at: new Date().toISOString() })
+      .eq("id", u.id);
+    u.bonus_used = true;
+  }
+
   await track(u.id, "trade_opened", {
     symbol: trade.symbol,
     amount: trade.amount,
