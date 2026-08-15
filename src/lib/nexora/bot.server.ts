@@ -916,7 +916,9 @@ async function route(u: LexoraUser, s: Settings, action: string) {
         kb([nav("setup")]),
       );
     case "enter":
+      if (!tradingUnlocked(u)) return unlockScreen(u);
       return enterTrade(u, s);
+
     case "wallet":
       return walletScreen(u, s);
     case "wd":
