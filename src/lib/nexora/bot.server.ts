@@ -488,7 +488,7 @@ async function walletScreen(u: LexoraUser, s: Settings) {
     u,
     `💰 MY WALLET\n\n💰 Total balance:        ${usd(
       b.balance,
-    )}\n🎁 Bonus (not withdrawable): ${usd(b.bonus)}\n📈 Trading profit:        ${signedUsd(
+    )}\n🎁 Welcome bonus:         ${bonusLine(u, b.bonus)}\n📈 Trading profit:        ${signedUsd(
       Number(b.profit),
     )}\n💸 Withdrawable profit:   ${usd(
       Math.max(0, Number(b.profit)),
