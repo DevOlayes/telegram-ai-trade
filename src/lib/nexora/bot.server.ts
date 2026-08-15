@@ -50,6 +50,103 @@ const nav = (back?: string): Button[] =>
     ? [{ text: "🔙 BACK", data: back }, { text: "🏠 MENU", data: "home" }]
     : [{ text: "🏠 MENU", data: "home" }];
 
+/* --------------------- referral share unlock (24h access) --------------------- */
+
+const PLATFORMS = [
+  { key: "whatsapp", label: "🟢 SHARE ON WHATSAPP", name: "WhatsApp" },
+  { key: "telegram", label: "✈️ SHARE ON TELEGRAM", name: "Telegram" },
+  { key: "x", label: "𝕏 SHARE ON X", name: "X" },
+  { key: "facebook", label: "🔵 SHARE ON FACEBOOK", name: "Facebook" },
+] as const;
+
+const shareText = (link: string) =>
+  `🚀 Discover LEXORA — AI-powered trading on Telegram.\n\n🎁 Start with a $25 FREE Welcome Bonus.\n\n👇 Get started:\n${link}`;
+
+function shareUrl(platform: string, link: string) {
+  const text = encodeURIComponent(shareText(link));
+  const url = encodeURIComponent(link);
+  switch (platform) {
+    case "whatsapp":
+      return `https://wa.me/?text=${text}`;
+    case "telegram":
+      return `https://t.me/share/url?url=${url}&text=${text}`;
+    case "x":
+      return `https://twitter.com/intent/tweet?text=${text}`;
+    default:
+      return `https://www.facebook.com/sharer/sharer.php?u=${url}&quote=${text}`;
+  }
+}
+
+export const tradingUnlocked = (u: LexoraUser) =>
+  !!u.trade_unlock_until && new Date(u.trade_unlock_until).getTime() > Date.now();
+
+async function sharedList(u: LexoraUser): Promise<string[]> {
+  const { data } = await db()
+    .from("users")
+    .select("share_platforms,trade_unlock_until")
+    .eq("id", u.id)
+    .maybeSingle();
+  u.trade_unlock_until = (data?.trade_unlock_until as string | null) ?? null;
+  const raw = data?.share_platforms;
+  return Array.isArray(raw) ? (raw as string[]) : [];
+}
+
+/** The gate shown when a user without active access opens trading. */
+async function unlockScreen(u: LexoraUser, note?: string) {
+  const done = await sharedList(u);
+  const link = refLink(u.referral_code);
+  const rows: Button[][] = [];
+  for (const p of PLATFORMS) {
+    if (done.includes(p.key)) {
+      rows.push([{ text: `✅ ${p.name} — SHARED`, data: "unlock" }]);
+    } else {
+      rows.push([
+        { text: p.label, url: shareUrl(p.key, link) },
+        { text: "✅ I SHARED IT", data: `shr:${p.key}` },
+      ]);
+    }
+  }
+  rows.push([{ text: "📋 COPY REFERRAL LINK", data: "linkonly" }]);
+  rows.push([{ text: "⬅️ BACK", data: "home" }]);
+  await renderScreen(
+    u,
+    `🔒 UNLOCK YOUR NEXT TRADE\n\nShare LEXORA on 2 social platforms to unlock 24 hours of trading access.\n\n🎁 Your friends can get a $25 FREE Welcome Bonus.\n\n${LINE}\nChoose any 2 — tap the platform, share, then tap “✅ I SHARED IT”.\n\nProgress: ${
+      done.length
+    } / 2${note ? `\n\n${note}` : ""}`,
+    kb(rows),
+  );
+}
+
+async function confirmShare(u: LexoraUser, platform?: string) {
+  const valid = PLATFORMS.some((p) => p.key === platform);
+  if (!valid) return unlockScreen(u);
+  const done = await sharedList(u);
+  if (done.includes(platform!)) {
+    return unlockScreen(u, "⚠️ That platform is already counted — choose a different one.");
+  }
+  const next = [...done, platform!];
+  if (next.length < 2) {
+    await db().from("users").update({ share_platforms: next }).eq("id", u.id);
+    u.share_platforms = next;
+    return unlockScreen(u, "✅ Counted. One more platform to go.");
+  }
+  const until = new Date(Date.now() + 24 * 3600000).toISOString();
+  await db()
+    .from("users")
+    .update({ share_platforms: [], trade_unlock_until: until })
+    .eq("id", u.id);
+  u.share_platforms = [];
+  u.trade_unlock_until = until;
+  await track(u.id, "trading_unlocked", { platforms: next });
+  await renderScreen(
+    u,
+    `🎉 TRADING UNLOCKED\n\nProgress: 2 / 2 ✅\n\nYour trading access is unlocked for 24 hours.`,
+    kb([[{ text: "🚀 START TRADING", data: "newtrade" }], nav()]),
+  );
+}
+
+
+
 /* ------------------------------ screens ------------------------------ */
 
 async function welcomeScreen(u: LexoraUser, s: Settings) {
