@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1788252932571,
+      "tag": "0000_withdrawal_fee_integrity",
+      "breakpoints": true
+    }
+  ]
+}
