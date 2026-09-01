@@ -100,7 +100,7 @@ export async function runTick() {
     await track(trade.user_id, "trade_settled", {
       symbol: trade.symbol,
       result: res.result,
-      pnl: res.pnl,
+      pnl,
     });
 
     const b = await getBalance(trade.user_id);
@@ -108,11 +108,11 @@ export async function runTick() {
     const arrow = trade.direction === "LONG" ? "📈" : "📉";
     const text = win
       ? `🎉 TRADE WON\n\n${trade.symbol}\n${arrow} ${trade.direction}\n\nProfit:\n+${usd(
-          res.pnl,
+          pnl,
         )}\n\n━━━━━━━━━━━━\n\n💰 Balance:\n${usd(b.balance)}`
       : `❌ TRADE CLOSED\n\n${trade.symbol}\n${arrow} ${
           trade.direction
-        }\n\nResult:\nLOSS\n\nLoss:\n-${usd(Math.abs(res.pnl))}\n\n━━━━━━━━━━━━\n\n💰 Balance:\n${usd(
+        }\n\nResult:\nLOSS\n\nLoss:\n-${usd(Math.abs(pnl))}\n\n━━━━━━━━━━━━\n\n💰 Balance:\n${usd(
           b.balance,
         )}`;
     const markup = kb([
