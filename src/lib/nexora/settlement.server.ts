@@ -44,9 +44,8 @@ export async function runTick() {
       continue;
     }
 
-    settled++;
-    const win = res.result === "win";
-    await db()
+    // Atomic settle: only the first worker to flip status="active" credits.
+    const { data: claimed } = await db()
       .from("trades")
       .update({
         status: "settled",
@@ -55,14 +54,49 @@ export async function runTick() {
         current_price: res.price,
         settled_at: new Date().toISOString(),
       })
-      .eq("id", trade.id);
+      .eq("id", trade.id)
+      .eq("status", "active")
+      .select("id");
+    if (!claimed?.length) continue;
 
-    const credit = Number(trade.amount) + res.pnl;
+    settled++;
+    const win = res.result === "win";
+
+    // Server-side bound on promotional compounding: accounts that never
+    // deposited cannot accumulate profit past the configured allowance.
+    let pnl = res.pnl;
+    if (win) {
+      const { count: deposited } = await db()
+        .from("deposits")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", trade.user_id)
+        .eq("status", "credited");
+      if (!deposited) {
+        const cap = Number(
+          (settings as unknown as { promo_max_earnings?: number }).promo_max_earnings ?? 5000,
+        );
+        const cur = await getBalance(trade.user_id);
+        const room = Math.max(0, cap - Number(cur.profit));
+        if (pnl > room) {
+          pnl = Number(room.toFixed(2));
+          await db()
+            .from("users")
+            .update({ flagged_reason: "promo_cap_reached" })
+            .eq("id", trade.user_id);
+        }
+      }
+    }
+    if (pnl !== res.pnl) {
+      await db().from("trades").update({ pnl }).eq("id", trade.id);
+    }
+
+    const credit = Number(trade.amount) + pnl;
     await applyBalance(
       trade.user_id,
-      { balance: credit, profit: res.pnl },
-      { kind: win ? "trade_win" : "trade_loss", amount: res.pnl, ref_id: trade.id },
+      { balance: credit, profit: pnl },
+      { kind: win ? "trade_win" : "trade_loss", amount: pnl, ref_id: trade.id },
     );
+
     await track(trade.user_id, "trade_settled", {
       symbol: trade.symbol,
       result: res.result,
