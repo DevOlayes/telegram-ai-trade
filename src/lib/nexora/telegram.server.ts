@@ -3,17 +3,22 @@ import { db } from "./core.server";
 
 const API = () => `https://api.telegram.org/bot${process.env["TELEGRAM_BOT_TOKEN"]}`;
 
-export type Button = { text: string; data?: string; url?: string };
+export type Button = { text: string; data?: string; url?: string; copy?: string };
 
 export function kb(rows: Button[][]) {
   return {
     inline_keyboard: rows.map((row) =>
       row.map((b) =>
-        b.url ? { text: b.text, url: b.url } : { text: b.text, callback_data: b.data! },
+        b.copy
+          ? { text: b.text, copy_text: { text: b.copy } }
+          : b.url
+            ? { text: b.text, url: b.url }
+            : { text: b.text, callback_data: b.data! },
       ),
     ),
   };
 }
+
 
 async function call<T = unknown>(method: string, body: unknown): Promise<T | null> {
   try {

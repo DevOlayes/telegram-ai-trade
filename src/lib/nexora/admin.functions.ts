@@ -181,3 +181,30 @@ export const setUserStatus = createServerFn({ method: "POST" })
     });
     return { ok: true };
   });
+
+/** Users who abandoned a withdrawal (expired/cancelled, never completed one). */
+export const getAbandonedWithdrawals = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context as never);
+    const { abandonedWithdrawals } = await import("@/lib/nexora/payments.server");
+    return { rows: await abandonedWithdrawals(14) };
+  });
+
+/** Send the recovery message to one abandoned-withdrawal user (manual, one at a time). */
+export const sendWithdrawalRecovery = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => z.object({ userId: z.string().uuid() }).parse(i))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context as never);
+    const { sendRecoveryMessage } = await import("@/lib/nexora/payments.server");
+    const { db } = await import("@/lib/nexora/core.server");
+    const ok = await sendRecoveryMessage(data.userId);
+    await db().from("admin_actions").insert({
+      admin_id: (context as { userId: string }).userId,
+      action: "withdrawal_recovery",
+      target: data.userId,
+      payload: {} as object,
+    });
+    return { ok };
+  });
