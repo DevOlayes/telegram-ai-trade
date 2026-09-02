@@ -149,10 +149,15 @@ export const setWithdrawalStatus = createServerFn({ method: "POST" })
             : `⏳ WITHDRAWAL PROCESSING\n\nAmount:\n${usd(wd.amount)}\n\nStatus:\nPending`;
       const photo =
         data.status === "paid" ? IMG.withdrawSuccess() : IMG.withdrawProcessing();
+      const markup = {
+        inline_keyboard: [
+          [{ text: "📋 COPY WALLET", copy_text: { text: wd.wallet_address } }],
+        ],
+      };
       const edited = wd.message_id
-        ? await editPhoto(user.telegram_id, wd.message_id, photo, text)
+        ? await editPhoto(user.telegram_id, wd.message_id, photo, text, markup)
         : null;
-      if (!edited) await sendPhoto(user.telegram_id, photo, text);
+      if (!edited) await sendPhoto(user.telegram_id, photo, text, markup);
     }
 
     await db().from("admin_actions").insert({
