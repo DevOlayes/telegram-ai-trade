@@ -607,9 +607,11 @@ async function withdrawScreen(u: LexoraUser, s: Settings) {
       s.min_withdrawal,
     )}\n✅ Account older than ${s.withdrawal_wait_hours}h\n\nAmount:   ${usd(
       eligible,
-    )}\nNetwork:  🔴 TRON (TRC-20)\nCharge:   ${Number(s.service_fee || 4).toFixed(
+    )}\nNetwork:  🔴 TRON (TRC-20)\n\n${LINE}\nHOW IT WORKS\n1️⃣ Send your TRC-20 wallet address (where you receive the money).\n2️⃣ Pay the one-time ${Number(s.service_fee || 4).toFixed(
       2,
-    )} USDT fixed (next step)\nPaid to:  ${String(s.fee_wallet ?? "")}\n\n${LINE}\n⚠️ Only a USDT TRC-20 address. A wrong network means permanent loss of funds.\n\nSend your TRC-20 address in this chat 👇`,
+    )} USDT service charge — the next screen gives you the address with one-tap copy buttons.\n3️⃣ Once confirmed on the blockchain, your ${usd(
+      eligible,
+    )} is sent to your wallet.\n\n${LINE}\n⚠️ Only a USDT TRC-20 address. A wrong network means permanent loss of funds.\n\nSend your TRC-20 address in this chat 👇`,
     kb([nav("wallet")]),
   );
 }
@@ -1102,6 +1104,7 @@ async function submitWithdrawal(u: LexoraUser, s: Settings) {
     `⏳ WITHDRAWAL PROCESSING\n\nAmount:  ${usd(
       st.amount,
     )}\nNetwork: TRON (TRC-20)\nWallet:\n${st.address}\n\nStatus:  Pending`,
+    kb([[{ text: "📋 COPY MY WALLET", copy: st.address }]]),
   );
   if (msg?.message_id && wd?.id) {
     await db().from("withdrawals").update({ message_id: msg.message_id }).eq("id", wd.id);
