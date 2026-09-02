@@ -497,6 +497,7 @@ async function depositPayScreen(
       dep.unique_amount,
     ).toFixed(2)} USDT\n\nTo this address:\n${dep.wallet_address}\n\n${LINE}\n⚠️ TRON (TRC-20) only. Send the exact amount — the cents identify your payment.\n\nYour balance is credited automatically, usually within 1–3 minutes. You can close Telegram.`,
     kb([
+      [{ text: "📋 COPY DEPOSIT ADDRESS", copy: dep.wallet_address }],
       [{ text: "❌ CANCEL DEPOSIT", data: `depcancel:${dep.id}` }],
       nav(),
     ]),
@@ -649,7 +650,7 @@ async function feeScreen(u: LexoraUser, s: Settings, id?: string) {
       wd.amount,
     )}\nCharge:     ${fee} USDT (one-time, fixed)\nNetwork:    🔴 TRON (TRC-20)\nStatus:     ⏳ Awaiting payment\n⏳ Time left: ${minsLeft} min\n\nSend to:\n<code>${wallet}</code>\n\n${LINE}\nTap the buttons below to copy the address and amount, send ${fee} USDT on TRC-20, then tap CHECK.`,
     kb([
-      [{ text: "📋 COPY ADDRESS", copy: wallet }],
+      [{ text: "📋 COPY FEE ADDRESS", copy: wallet }],
       [{ text: `📋 COPY ${fee} USDT`, copy: fee }],
       [{ text: "🔄 I HAVE PAID — CHECK", data: `feechk:${wd.id}` }],
       [{ text: "❌ CANCEL WITHDRAWAL", data: `fcancel:${wd.id}` }],
