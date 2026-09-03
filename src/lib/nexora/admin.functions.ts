@@ -237,7 +237,11 @@ export const createBroadcast = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     await assertAdmin(context as never);
     const { createBroadcast: create } = await import("@/lib/nexora/broadcast.server");
-    return create({ ...data, createdBy: (context as { userId: string }).userId });
+    return create({
+      ...data,
+      ...(data.title ? { title: data.title } : {}),
+      createdBy: (context as { userId: string }).userId,
+    });
   });
 
 export const listBroadcasts = createServerFn({ method: "GET" })
