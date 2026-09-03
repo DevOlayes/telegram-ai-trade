@@ -45,7 +45,6 @@ export const getAdminOverview = createServerFn({ method: "GET" })
       .order("created_at", { ascending: false })
       .limit(100);
 
-
     const since24 = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const [totalUsers, users24h, users7d, activeTrades, pendingWithdrawals] = await Promise.all([
@@ -66,7 +65,6 @@ export const getAdminOverview = createServerFn({ method: "GET" })
       withdrawals: withdrawals.data ?? [],
       deposits: deposits.data ?? [],
       referrals: referrals.data ?? [],
-
       settings: settings.data ?? [],
       balances: bal,
       stats: {
@@ -147,12 +145,9 @@ export const setWithdrawalStatus = createServerFn({ method: "POST" })
           : data.status === "rejected"
             ? `⚠️ WITHDRAWAL REJECTED\n\nAmount:\n${usd(wd.amount)}\n\nThe amount has been returned to your balance.`
             : `⏳ WITHDRAWAL PROCESSING\n\nAmount:\n${usd(wd.amount)}\n\nStatus:\nPending`;
-      const photo =
-        data.status === "paid" ? IMG.withdrawSuccess() : IMG.withdrawProcessing();
+      const photo = data.status === "paid" ? IMG.withdrawSuccess() : IMG.withdrawProcessing();
       const markup = {
-        inline_keyboard: [
-          [{ text: "📋 COPY WALLET", copy_text: { text: wd.wallet_address } }],
-        ],
+        inline_keyboard: [[{ text: "📋 COPY WALLET", copy_text: { text: wd.wallet_address } }]],
       };
       const edited = wd.message_id
         ? await editPhoto(user.telegram_id, wd.message_id, photo, text, markup)
@@ -187,7 +182,6 @@ export const setUserStatus = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-/** Users who abandoned a withdrawal (expired/cancelled, never completed one). */
 export const getAbandonedWithdrawals = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -196,7 +190,6 @@ export const getAbandonedWithdrawals = createServerFn({ method: "GET" })
     return { rows: await abandonedWithdrawals(14) };
   });
 
-/** Send the recovery message to one abandoned-withdrawal user (manual, one at a time). */
 export const sendWithdrawalRecovery = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i: unknown) => z.object({ userId: z.string().uuid() }).parse(i))
@@ -212,4 +205,71 @@ export const sendWithdrawalRecovery = createServerFn({ method: "POST" })
       payload: {} as object,
     });
     return { ok };
+  });
+
+const broadcastButtonSchema = z.object({
+  text: z.string().trim().min(1).max(64),
+  action: z.string().optional(),
+  url: z.string().url().optional(),
+}).refine((b) => Boolean(b.action || b.url), "Button needs an action or URL");
+
+const broadcastInputSchema = z.object({
+  title: z.string().max(120).optional(),
+  body: z.string().trim().min(1).max(4000),
+  mediaId: z.string().optional(),
+  audience: z.enum(["all", "abandoned_withdrawals", "has_profit", "never_traded", "inactive"]),
+  days: z.number().int().min(1).max(365).optional(),
+  buttons: z.array(broadcastButtonSchema).max(2),
+});
+
+export const previewBroadcastAudience = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => z.object({ audience: broadcastInputSchema.shape.audience, days: z.number().int().min(1).max(365).optional() }).parse(i))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context as never);
+    const { resolveAudience } = await import("@/lib/nexora/broadcast.server");
+    return { count: (await resolveAudience(data.audience, data.days ? { days: data.days } : {})).length };
+  });
+
+export const createBroadcast = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => broadcastInputSchema.parse(i))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context as never);
+    const { createBroadcast: create } = await import("@/lib/nexora/broadcast.server");
+    return create({
+      ...data,
+      ...(data.title ? { title: data.title } : {}),
+      createdBy: (context as { userId: string }).userId,
+    });
+  });
+
+export const listBroadcasts = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context as never);
+    const { db } = await import("@/lib/nexora/core.server");
+    const { data, error } = await db()
+      .from("broadcasts")
+      .select("id,title,body,media_type,audience,status,total_count,sent_count,failed_count,created_at,finished_at")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  });
+
+export const runBroadcast = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context as never);
+    const { db } = await import("@/lib/nexora/core.server");
+    const { data: updated } = await db()
+      .from("broadcasts")
+      .update({ status: "sending", started_at: new Date().toISOString(), finished_at: null })
+      .eq("id", data.id)
+      .eq("status", "draft")
+      .select("id")
+      .maybeSingle();
+    return { ok: Boolean(updated) };
   });

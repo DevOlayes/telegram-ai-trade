@@ -8,6 +8,13 @@
       "when": 1788252932571,
       "tag": "0000_withdrawal_fee_integrity",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788412684730,
+      "tag": "0001_broadcasts",
+      "breakpoints": true
     }
   ]
 }

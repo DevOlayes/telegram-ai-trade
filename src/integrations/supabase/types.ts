@@ -79,6 +79,108 @@ export type Database = {
           },
         ]
       }
+      broadcast_recipients: {
+        Row: {
+          broadcast_id: string
+          error: string | null
+          id: string
+          sent_at: string | null
+          status: string
+          telegram_id: number
+          user_id: string
+        }
+        Insert: {
+          broadcast_id: string
+          error?: string | null
+          id?: string
+          sent_at?: string | null
+          status?: string
+          telegram_id: number
+          user_id: string
+        }
+        Update: {
+          broadcast_id?: string
+          error?: string | null
+          id?: string
+          sent_at?: string | null
+          status?: string
+          telegram_id?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broadcast_recipients_broadcast_id_fkey"
+            columns: ["broadcast_id"]
+            isOneToOne: false
+            referencedRelation: "broadcasts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "broadcast_recipients_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      broadcasts: {
+        Row: {
+          audience: string
+          audience_params: Json
+          body: string
+          buttons: Json
+          created_at: string
+          created_by: string | null
+          failed_count: number
+          finished_at: string | null
+          id: string
+          media_type: string
+          media_url: string | null
+          sent_count: number
+          started_at: string | null
+          status: string
+          title: string | null
+          total_count: number
+        }
+        Insert: {
+          audience: string
+          audience_params?: Json
+          body: string
+          buttons?: Json
+          created_at?: string
+          created_by?: string | null
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          media_type?: string
+          media_url?: string | null
+          sent_count?: number
+          started_at?: string | null
+          status?: string
+          title?: string | null
+          total_count?: number
+        }
+        Update: {
+          audience?: string
+          audience_params?: Json
+          body?: string
+          buttons?: Json
+          created_at?: string
+          created_by?: string | null
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          media_type?: string
+          media_url?: string | null
+          sent_count?: number
+          started_at?: string | null
+          status?: string
+          title?: string | null
+          total_count?: number
+        }
+        Relationships: []
+      }
       deposits: {
         Row: {
           amount: number
