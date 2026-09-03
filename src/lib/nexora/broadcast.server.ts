@@ -94,11 +94,11 @@ export async function resolveAudience(
 export type BroadcastInput = {
   title?: string | undefined;
   body: string;
-  mediaId?: string;
-  buttons?: BroadcastButton[];
+  mediaId?: string | undefined;
+  buttons?: BroadcastButton[] | undefined;
   audience: string;
-  days?: number;
-  createdBy?: string;
+  days?: number | undefined;
+  createdBy?: string | undefined;
 };
 
 /** Create a broadcast and materialise its recipient list (idempotent per user). */
