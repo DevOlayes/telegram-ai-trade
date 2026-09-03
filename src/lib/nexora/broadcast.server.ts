@@ -92,7 +92,7 @@ export async function resolveAudience(
 }
 
 export type BroadcastInput = {
-  title?: string;
+  title?: string | undefined;
   body: string;
   mediaId?: string;
   buttons?: BroadcastButton[];
