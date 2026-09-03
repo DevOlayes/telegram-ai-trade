@@ -104,7 +104,10 @@ export type BroadcastInput = {
 /** Create a broadcast and materialise its recipient list (idempotent per user). */
 export async function createBroadcast(input: BroadcastInput) {
   const media = MEDIA_LIBRARY.find((m) => m.id === (input.mediaId ?? "none")) ?? MEDIA_LIBRARY[0]!;
-  const recipients = await resolveAudience(input.audience, { days: input.days });
+  const recipients = await resolveAudience(
+    input.audience,
+    input.days ? { days: input.days } : {},
+  );
 
   const { data: bc, error } = await db()
     .from("broadcasts")
