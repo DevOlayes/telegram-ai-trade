@@ -26,7 +26,7 @@ export const ACTION_BUTTONS: Record<string, string> = {
   home: "🏠 OPEN MENU",
 };
 
-export type BroadcastButton = { text: string; action?: string; url?: string };
+export type BroadcastButton = { text: string; action?: string | undefined; url?: string | undefined };
 
 export const AUDIENCES = [
   { id: "all", label: "All users" },

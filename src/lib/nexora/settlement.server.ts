@@ -136,7 +136,17 @@ export async function runTick() {
   const fees = await sweepFees();
   const { matchDeposits } = await import("./deposits.server");
   const deposits = await matchDeposits();
+  const { drainBroadcasts } = await import("./broadcast.server");
+  const broadcast = await drainBroadcasts(300);
 
-  return { checked: trades?.length ?? 0, settled, ...fees, ...deposits };
+  return {
+    checked: trades?.length ?? 0,
+    settled,
+    ...fees,
+    ...deposits,
+    broadcast_sent: broadcast.sent,
+    broadcast_failed: broadcast.failed,
+  };
+
 
 }
