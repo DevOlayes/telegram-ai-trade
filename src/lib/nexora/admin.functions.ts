@@ -258,6 +258,36 @@ export const listBroadcasts = createServerFn({ method: "GET" })
     return data ?? [];
   });
 
+export const listBroadcastRecipients = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => z.object({ broadcastId: z.string().uuid() }).parse(i))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context as never);
+    const { db } = await import("@/lib/nexora/core.server");
+    const { data: rows, error } = await db()
+      .from("broadcast_recipients")
+      .select("id,telegram_id,status,error,sent_at")
+      .eq("broadcast_id", data.broadcastId)
+      .order("sent_at", { ascending: false, nullsFirst: false })
+      .limit(1000);
+    if (error) throw new Error(error.message);
+
+    const { data: users } = await db().from("users").select("id,telegram_id,username");
+    const nameOf = new Map(
+      (users ?? []).map((u) => [Number(u.telegram_id), (u.username as string | null) ?? null]),
+    );
+    return (rows ?? []).map((r) => ({
+      id: r.id as string,
+      telegram_id: Number(r.telegram_id),
+      username: nameOf.get(Number(r.telegram_id)) ?? null,
+      status: r.status as string,
+      error: (r.error as string | null) ?? null,
+      sent_at: (r.sent_at as string | null) ?? null,
+    }));
+  });
+
+
+
 export const runBroadcast = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
