@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   createBroadcast,
   getAdminOverview,
+  listBroadcastRecipients,
   listBroadcasts,
   previewBroadcastAudience,
   setUserStatus,
@@ -290,6 +291,7 @@ function BroadcastTab() {
   const [body, setBody] = useState(RECOVERY_BODY);
   const [action, setAction] = useState<string>("wd");
   const [actionText, setActionText] = useState("💸 WITHDRAW NOW");
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const history = useQuery({
     queryKey: ["admin-broadcasts"],
@@ -435,7 +437,7 @@ function BroadcastTab() {
 
       <div>
         <h2 className="mb-3 text-sm uppercase tracking-wide text-muted-foreground">History</h2>
-        <Table head={["When", "Audience", "Media", "Status", "Total", "Sent", "Failed", "Message"]}>
+        <Table head={["When", "Audience", "Media", "Status", "Total", "Sent", "Failed", "Message", ""]}>
           {(history.data ?? []).map((b) => (
             <tr key={b.id} className="border-t border-border">
               <Td>{new Date(b.created_at).toLocaleString()}</Td>
@@ -446,10 +448,62 @@ function BroadcastTab() {
               <Td>{b.sent_count}</Td>
               <Td>{b.failed_count}</Td>
               <Td className="max-w-[220px] truncate">{b.body}</Td>
+              <Td>
+                <button
+                  className="text-xs underline"
+                  onClick={() => setOpenId(openId === b.id ? null : b.id)}
+                >
+                  {openId === b.id ? "Hide chats" : "View chats"}
+                </button>
+              </Td>
             </tr>
           ))}
         </Table>
+        {openId && <BroadcastChats broadcastId={openId} />}
       </div>
+    </div>
+  );
+}
+
+function BroadcastChats({ broadcastId }: { broadcastId: string }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["broadcast-recipients", broadcastId],
+    queryFn: () => listBroadcastRecipients({ data: { broadcastId } }),
+    retry: false,
+    refetchInterval: 10000,
+  });
+
+  if (isLoading) return <p className="mt-4 text-sm text-muted-foreground">Loading chats…</p>;
+  if (error) return <p className="mt-4 text-sm text-destructive">{(error as Error).message}</p>;
+
+  const rows = data ?? [];
+  const count = (s: string) => rows.filter((r) => r.status === s).length;
+
+  return (
+    <div className="mt-4">
+      <p className="mb-2 text-xs text-muted-foreground">
+        {rows.length} chat(s) · sent {count("sent")} · pending {count("pending")} · failed{" "}
+        {count("failed")} · blocked {count("blocked")}
+      </p>
+      <Table head={["Chat ID", "Username", "Status", "Delivered at", "Error"]}>
+        {rows.map((r) => (
+          <tr key={r.id} className="border-t border-border">
+            <Td className="tabular-nums">{r.telegram_id}</Td>
+            <Td>{r.username ? `@${r.username}` : "—"}</Td>
+            <Td>
+              {r.status === "sent"
+                ? "✅ delivered"
+                : r.status === "pending"
+                  ? "⏳ pending"
+                  : r.status === "blocked"
+                    ? "🚫 blocked bot"
+                    : "❌ failed"}
+            </Td>
+            <Td>{r.sent_at ? new Date(r.sent_at).toLocaleString() : "—"}</Td>
+            <Td className="max-w-[220px] truncate">{r.error ?? "—"}</Td>
+          </tr>
+        ))}
+      </Table>
     </div>
   );
 }
