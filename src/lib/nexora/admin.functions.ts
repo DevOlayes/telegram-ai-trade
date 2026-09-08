@@ -303,3 +303,83 @@ export const runBroadcast = createServerFn({ method: "POST" })
       .maybeSingle();
     return { ok: Boolean(updated) };
   });
+
+export const getRealMoneyReport = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context as never);
+    const { db } = await import("@/lib/nexora/core.server");
+    const [users, deposits, withdrawals] = await Promise.all([
+      db().from("users").select("id,telegram_id,username,created_at"),
+      db().from("deposits").select("user_id,amount,status"),
+      db()
+        .from("withdrawals")
+        .select("user_id,amount,status,service_fee_amount,service_fee_status"),
+    ]);
+
+    type Row = {
+      user_id: string;
+      telegram_id: number;
+      username: string | null;
+      created_at: string;
+      deposited: number;
+      withdrawn: number;
+      pending_withdrawal: number;
+      fees_paid: number;
+      net_real: number;
+    };
+    const map = new Map<string, Row>();
+    const rowFor = (uid: string): Row | null => {
+      const u = (users.data ?? []).find((x) => x.id === uid);
+      if (!u) return null;
+      let r = map.get(uid);
+      if (!r) {
+        r = {
+          user_id: uid,
+          telegram_id: u.telegram_id,
+          username: u.username,
+          created_at: u.created_at,
+          deposited: 0,
+          withdrawn: 0,
+          pending_withdrawal: 0,
+          fees_paid: 0,
+          net_real: 0,
+        };
+        map.set(uid, r);
+      }
+      return r;
+    };
+
+    for (const d of deposits.data ?? []) {
+      if (d.status !== "credited" && d.status !== "confirmed") continue;
+      const r = rowFor(d.user_id);
+      if (r) r.deposited += Number(d.amount);
+    }
+    for (const w of withdrawals.data ?? []) {
+      const r = rowFor(w.user_id);
+      if (!r) continue;
+      if (w.status === "paid" || w.status === "approved" || w.status === "completed")
+        r.withdrawn += Number(w.amount);
+      if (w.status === "pending") r.pending_withdrawal += Number(w.amount);
+      if (w.service_fee_status === "paid" || w.service_fee_status === "confirmed")
+        r.fees_paid += Number(w.service_fee_amount);
+    }
+
+    const rows = [...map.values()]
+      .map((r) => ({ ...r, net_real: Number((r.deposited - r.withdrawn).toFixed(2)) }))
+      .filter((r) => r.deposited > 0 || r.withdrawn > 0 || r.pending_withdrawal > 0 || r.fees_paid > 0)
+      .sort((a, b) => b.deposited - a.deposited || b.withdrawn - a.withdrawn);
+
+    const totals = rows.reduce(
+      (a, r) => ({
+        deposited: a.deposited + r.deposited,
+        withdrawn: a.withdrawn + r.withdrawn,
+        pending_withdrawal: a.pending_withdrawal + r.pending_withdrawal,
+        fees_paid: a.fees_paid + r.fees_paid,
+        net_real: a.net_real + r.net_real,
+      }),
+      { deposited: 0, withdrawn: 0, pending_withdrawal: 0, fees_paid: 0, net_real: 0 },
+    );
+
+    return { rows, totals };
+  });
