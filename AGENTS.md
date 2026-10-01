@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Broadcast uploads live in private `broadcast-media` storage; admin-only signed uploads and short-lived delivery URLs keep files reusable without opening public storage.
