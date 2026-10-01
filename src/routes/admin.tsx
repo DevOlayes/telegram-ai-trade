@@ -11,6 +11,7 @@ import {
   EyeOff,
   Landmark,
   Megaphone,
+  Upload,
   RefreshCw,
   Search,
   Send,
@@ -25,11 +26,14 @@ import {
   getAdminOverview,
   listBroadcastRecipients,
   listBroadcasts,
+  listBroadcastMedia,
+  prepareBroadcastUpload,
   previewBroadcastAudience,
   setUserStatus,
   setWithdrawalStatus,
   updateSetting,
 } from "@/lib/nexora/admin.functions";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -378,6 +382,9 @@ function BroadcastTab() {
   const [audience, setAudience] = useState<string>("abandoned_withdrawals");
   const [days, setDays] = useState(7);
   const [mediaId, setMediaId] = useState<string>("withdraw-recovery");
+  const [mediaPath, setMediaPath] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const [body, setBody] = useState(RECOVERY_BODY);
   const [action, setAction] = useState<string>("wd");
   const [actionText, setActionText] = useState("💸 WITHDRAW NOW");
@@ -389,6 +396,28 @@ function BroadcastTab() {
     retry: false,
     refetchInterval: 15000,
   });
+  const library = useQuery({ queryKey: ["broadcast-media"], queryFn: () => listBroadcastMedia(), retry: false });
+
+  async function uploadMedia(file: File) {
+    setUploadError("");
+    if (!["image/jpeg", "image/png", "image/webp", "video/mp4"].includes(file.type) || file.size > 20 * 1024 * 1024) {
+      setUploadError("Choose a JPG, PNG, WebP, or MP4 under 20 MB.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const { path, token } = await prepareBroadcastUpload({ data: { name: file.name, type: file.type as "image/jpeg" | "image/png" | "image/webp" | "video/mp4", size: file.size } });
+      const { error } = await supabase.storage.from("broadcast-media").uploadToSignedUrl(path, token, file, { contentType: file.type });
+      if (error) throw error;
+      await qc.invalidateQueries({ queryKey: ["broadcast-media"] });
+      setMediaPath(path);
+      setMediaId("none");
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   const preview = useMutation({
     mutationFn: () =>
@@ -403,6 +432,7 @@ function BroadcastTab() {
         data: {
           body,
           mediaId,
+          ...(mediaPath ? { mediaPath } : {}),
           audience: audience as never,
           buttons: action ? [{ text: actionText || "OPEN", action }] : [],
           ...(audience === "inactive" ? { days } : {}),
@@ -445,13 +475,30 @@ function BroadcastTab() {
             )}
 
             <Field label="Media">
-              <select className={inputCls} value={mediaId} onChange={(e) => setMediaId(e.target.value)}>
+              <select className={inputCls} value={mediaPath || mediaId} onChange={(e) => {
+                const value = e.target.value;
+                if (value.includes("/image/") || value.includes("/video/")) { setMediaPath(value); setMediaId("none"); }
+                else { setMediaPath(""); setMediaId(value); }
+              }}>
                 {MEDIA_OPTIONS.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.label}
                   </option>
                 ))}
+                {(library.data ?? []).map((m) => <option key={m.path} value={m.path}>{m.type === "video" ? "Video" : "Image"} · {m.name}</option>)}
               </select>
+              <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm text-primary">
+                <Upload className="h-4 w-4" /> {uploading ? "Uploading…" : "Upload image or video"}
+                <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4" disabled={uploading} className="sr-only" onChange={(e) => { const file = e.target.files?.[0]; if (file) void uploadMedia(file); e.target.value = ""; }} />
+              </label>
+              <p className="mt-1 text-xs text-muted-foreground">JPG, PNG, WebP or MP4 · up to 20 MB</p>
+              {uploadError && <p className="mt-1 text-sm text-destructive" role="alert">{uploadError}</p>}
+              {library.error && <p className="mt-1 text-sm text-destructive" role="alert">Could not load uploads: {(library.error as Error).message}</p>}
+              {mediaPath && (library.data ?? []).find((m) => m.path === mediaPath)?.previewUrl && (
+                mediaPath.includes("/video/")
+                  ? <video className="mt-3 max-h-56 w-full object-contain" src={library.data?.find((m) => m.path === mediaPath)?.previewUrl} controls />
+                  : <img className="mt-3 max-h-56 w-full object-contain" src={library.data?.find((m) => m.path === mediaPath)?.previewUrl} alt="Selected broadcast image" />
+              )}
             </Field>
 
             <Field label="Button">
@@ -515,7 +562,7 @@ function BroadcastTab() {
           onClick={() => {
             if (confirm("Send this broadcast now?")) send.mutate();
           }}
-          disabled={send.isPending || !body.trim()}
+           disabled={send.isPending || uploading || !body.trim() || (Boolean(mediaPath) && !library.data?.some((m) => m.path === mediaPath))}
           className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
         >
           <Send className="h-4 w-4" />

@@ -207,6 +207,8 @@ export const sendWithdrawalRecovery = createServerFn({ method: "POST" })
     return { ok };
   });
 
+const mediaPathSchema = z.string().regex(/^[a-f0-9-]{36}\/(image|video)\/[a-f0-9-]{36}\.(jpg|jpeg|png|webp|mp4)$/);
+
 const broadcastButtonSchema = z.object({
   text: z.string().trim().min(1).max(64),
   action: z.string().optional(),
@@ -217,6 +219,7 @@ const broadcastInputSchema = z.object({
   title: z.string().max(120).optional(),
   body: z.string().trim().min(1).max(4000),
   mediaId: z.string().optional(),
+  mediaPath: mediaPathSchema.optional(),
   audience: z.enum(["all", "abandoned_withdrawals", "has_profit", "never_traded", "inactive"]),
   days: z.number().int().min(1).max(365).optional(),
   buttons: z.array(broadcastButtonSchema).max(2),
@@ -231,11 +234,54 @@ export const previewBroadcastAudience = createServerFn({ method: "POST" })
     return { count: (await resolveAudience(data.audience, data.days ? { days: data.days } : {})).length };
   });
 
+export const prepareBroadcastUpload = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => z.object({ name: z.string().min(1).max(200), type: z.enum(["image/jpeg", "image/png", "image/webp", "video/mp4"]), size: z.number().int().positive().max(20 * 1024 * 1024) }).parse(i))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context as never);
+    const extension = data.name.split(".").pop()?.toLowerCase();
+    const extensions: Record<string, string[]> = { "image/jpeg": ["jpg", "jpeg"], "image/png": ["png"], "image/webp": ["webp"], "video/mp4": ["mp4"] };
+    if (!extension || !extensions[data.type]?.includes(extension)) throw new Error("File type and extension must match");
+    const { db } = await import("@/lib/nexora/core.server");
+    const path = `${context.userId}/${data.type.startsWith("video/") ? "video" : "image"}/${crypto.randomUUID()}.${extension}`;
+    const { data: signed, error } = await db().storage.from("broadcast-media").createSignedUploadUrl(path);
+    if (error || !signed) throw new Error(error?.message ?? "Could not prepare upload");
+    return { path, token: signed.token };
+  });
+
+export const listBroadcastMedia = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context as never);
+    const { db } = await import("@/lib/nexora/core.server");
+    const bucket = db().storage.from("broadcast-media");
+    const items: { path: string; name: string; type: "photo" | "video"; previewUrl: string }[] = [];
+    for (const type of ["image", "video"] as const) {
+      const { data: files, error } = await bucket.list(`${context.userId}/${type}`, { limit: 100, sortBy: { column: "created_at", order: "desc" } });
+      if (error) throw new Error(error.message);
+      for (const file of files ?? []) {
+        const path = `${context.userId}/${type}/${file.name}`;
+        if (!mediaPathSchema.safeParse(path).success) continue;
+        const { data: signed } = await bucket.createSignedUrl(path, 3600);
+        if (signed) items.push({ path, name: file.name, type: type === "video" ? "video" : "photo", previewUrl: signed.signedUrl });
+      }
+    }
+    return items;
+  });
+
 export const createBroadcast = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i: unknown) => broadcastInputSchema.parse(i))
   .handler(async ({ context, data }) => {
     await assertAdmin(context as never);
+    if (data.mediaPath) {
+      if (!data.mediaPath.startsWith(`${context.userId}/`)) throw new Error("Media is not yours");
+      const { db } = await import("@/lib/nexora/core.server");
+      const folder = data.mediaPath.slice(0, data.mediaPath.lastIndexOf("/"));
+      const name = data.mediaPath.slice(data.mediaPath.lastIndexOf("/") + 1);
+      const { data: files, error } = await db().storage.from("broadcast-media").list(folder, { search: name });
+      if (error || !files?.some((file) => file.name === name)) throw new Error("Uploaded media not found");
+    }
     const { createBroadcast: create } = await import("@/lib/nexora/broadcast.server");
     return create({
       ...data,
