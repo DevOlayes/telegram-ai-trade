@@ -95,6 +95,7 @@ export type BroadcastInput = {
   title?: string | undefined;
   body: string;
   mediaId?: string | undefined;
+  mediaPath?: string | undefined;
   buttons?: BroadcastButton[] | undefined;
   audience: string;
   days?: number | undefined;
@@ -104,6 +105,7 @@ export type BroadcastInput = {
 /** Create a broadcast and materialise its recipient list (idempotent per user). */
 export async function createBroadcast(input: BroadcastInput) {
   const media = MEDIA_LIBRARY.find((m) => m.id === (input.mediaId ?? "none")) ?? MEDIA_LIBRARY[0]!;
+  const mediaType = input.mediaPath ? (input.mediaPath.includes("/video/") ? "video" : "photo") : media.type;
   const recipients = await resolveAudience(
     input.audience,
     input.days ? { days: input.days } : {},
@@ -114,8 +116,8 @@ export async function createBroadcast(input: BroadcastInput) {
     .insert({
       title: input.title ?? null,
       body: input.body,
-      media_url: media.url || null,
-      media_type: media.type,
+      media_url: input.mediaPath ? `broadcast-media:${input.mediaPath}` : media.url || null,
+      media_type: mediaType,
       buttons: (input.buttons ?? []) as object,
       audience: input.audience,
       audience_params: { days: input.days ?? null } as object,
@@ -214,6 +216,14 @@ export async function drainBroadcasts(limit = 200) {
 
   for (const bc of active) {
     if (budget <= 0) break;
+    if (typeof bc.media_url === "string" && bc.media_url.startsWith("broadcast-media:")) {
+      const { data: signed, error } = await db().storage.from("broadcast-media").createSignedUrl(bc.media_url.slice("broadcast-media:".length), 3600);
+      if (error || !signed) {
+        console.error("Broadcast media unavailable", error);
+        continue;
+      }
+      bc.media_url = signed.signedUrl;
+    }
     const { data: pending } = await db()
       .from("broadcast_recipients")
       .select("id,telegram_id")
