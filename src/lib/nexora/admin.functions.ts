@@ -207,6 +207,8 @@ export const sendWithdrawalRecovery = createServerFn({ method: "POST" })
     return { ok };
   });
 
+const mediaPathSchema = z.string().regex(/^[a-f0-9-]{36}\/(image|video)\/[a-f0-9-]{36}\.(jpg|jpeg|png|webp|mp4)$/);
+
 const broadcastButtonSchema = z.object({
   text: z.string().trim().min(1).max(64),
   action: z.string().optional(),
@@ -231,8 +233,6 @@ export const previewBroadcastAudience = createServerFn({ method: "POST" })
     const { resolveAudience } = await import("@/lib/nexora/broadcast.server");
     return { count: (await resolveAudience(data.audience, data.days ? { days: data.days } : {})).length };
   });
-
-const mediaPathSchema = z.string().regex(/^[a-f0-9-]{36}\/(image|video)\/[a-f0-9-]{36}\.(jpg|jpeg|png|webp|mp4)$/);
 
 export const prepareBroadcastUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
