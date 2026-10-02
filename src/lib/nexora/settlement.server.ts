@@ -10,6 +10,8 @@ const UPDATE_INTERVAL_MS = 2 * 60 * 1000;
 
 export async function runTick() {
   const settings = await getSettings();
+  const { error: expiryError } = await db().rpc("expire_promotional_credit", { p_user_id: null });
+  if (expiryError) throw expiryError;
   const { data: trades } = await db().from("trades").select("*").eq("status", "active").limit(200);
 
   let settled = 0;

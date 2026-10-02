@@ -608,6 +608,8 @@ export type Database = {
           bonus_amount: number
           bonus_claimed: boolean
           bonus_claimed_at: string | null
+          bonus_expired_at: string | null
+          bonus_expires_at: string | null
           bonus_used: boolean
           bonus_used_at: string | null
           created_at: string
@@ -633,6 +635,8 @@ export type Database = {
           bonus_amount?: number
           bonus_claimed?: boolean
           bonus_claimed_at?: string | null
+          bonus_expired_at?: string | null
+          bonus_expires_at?: string | null
           bonus_used?: boolean
           bonus_used_at?: string | null
           created_at?: string
@@ -658,6 +662,8 @@ export type Database = {
           bonus_amount?: number
           bonus_claimed?: boolean
           bonus_claimed_at?: string | null
+          bonus_expired_at?: string | null
+          bonus_expires_at?: string | null
           bonus_used?: boolean
           bonus_used_at?: string | null
           created_at?: string
@@ -753,6 +759,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      expire_promotional_credit: {
+        Args: { p_user_id?: string }
+        Returns: number
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
