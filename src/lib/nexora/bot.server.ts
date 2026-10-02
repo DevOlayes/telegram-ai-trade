@@ -40,11 +40,15 @@ import {
 const LINE = "━━━━━━━━━━━━━━━";
 
 /** The welcome bonus is one-time: once spent on a trade it reads as USED. */
-const bonusLine = (u: LexoraUser, bonus: number | string) =>
-  toCents(bonus) > 0 ? `${usd(bonus)} (not withdrawable)` : u.bonus_used ? "USED" : u.bonus_expired_at || (u.bonus_expires_at && Date.now() >= new Date(u.bonus_expires_at).getTime()) ? "EXPIRED" : usd(0);
+const bonusLine = (u: LexoraUser, bonus: number | string) => {
+  if (toCents(bonus) > 0) return `${usd(bonus)} (not withdrawable)`;
+  if (u.bonus_used) return "USED";
+  if (u.bonus_expired_at || (u.bonus_expires_at && Date.now() >= new Date(u.bonus_expires_at).getTime())) return "EXPIRED";
+  return usd(0);
+};
 
 const creditTerms = (s: Settings) =>
-  `Promotional trading credit, not a cash deposit. Unspent credit expires 48 hours after claiming. It cannot be withdrawn or reused once spent. Trading results are simulated; profits are not guaranteed. Any profit withdrawal requires at least ${usd(s.min_withdrawal)} in eligible profit, an account at least ${s.withdrawal_wait_hours}h old, and a one-time ${usd(s.service_fee)} service charge before review. Deposits are optional to start trading.`;
+  `Promotional trading credit, not a cash deposit. Unspent credit expires 48 hours after claiming (existing claims: 48 hours from rollout). It cannot be withdrawn or reused once spent. Trading results are simulated; profits are not guaranteed. Any profit withdrawal requires at least ${usd(s.min_withdrawal)} in eligible profit, an account at least ${s.withdrawal_wait_hours}h old, and a one-time ${usd(s.service_fee)} service charge before review. No deposit is needed to start; trading access requires sharing on 2 platforms for 24h access.`;
 
 const creditExpiryNotice = (u: LexoraUser, bonus: number | string) => {
   if (toCents(bonus) <= 0 || !u.bonus_expires_at) return "";
@@ -52,7 +56,7 @@ const creditExpiryNotice = (u: LexoraUser, bonus: number | string) => {
   if (Number.isNaN(expires.getTime())) return "";
   const minutes = Math.max(0, Math.ceil((expires.getTime() - Date.now()) / 60000));
   const hours = Math.floor(minutes / 60);
-  return `\n\n⏱ Promotional credit expires: ${expires.toISOString().replace("T", " ").slice(0, 16)} UTC (${hours}h ${minutes % 60}m remaining). Only unspent credit expires.`;
+  return `\n\n⏱ Promotional credit expires: ${expires.toISOString().replace("T", " ").slice(0, 16)} UTC (${hours}h ${minutes % 60}m left at this update). Only unspent credit expires.`;
 };
 
 export const appUrl = () =>
