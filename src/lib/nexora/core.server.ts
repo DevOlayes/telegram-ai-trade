@@ -80,6 +80,8 @@ export type LexoraUser = {
   referral_code: string;
   referred_by: string | null;
   bonus_claimed: boolean;
+  bonus_expires_at?: string | null;
+  bonus_expired_at?: string | null;
   bonus_used?: boolean;
   trade_unlock_until?: string | null;
   share_platforms?: string[] | null;
@@ -151,6 +153,9 @@ export async function getOrCreateUser(tg: {
 }
 
 export async function getBalance(userId: string): Promise<Balance> {
+  // Expire only unspent promotional credit; real deposits and trade results remain untouched.
+  const { error: expiryError } = await db().rpc("expire_promotional_credit", { p_user_id: userId });
+  if (expiryError) throw expiryError;
   const { data } = await db().from("balances").select("*").eq("user_id", userId).maybeSingle();
   if (data) return data as Balance;
   const created = await db().from("balances").insert({ user_id: userId }).select("*").single();

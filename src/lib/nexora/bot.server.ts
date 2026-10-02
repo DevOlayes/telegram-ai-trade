@@ -41,7 +41,19 @@ const LINE = "━━━━━━━━━━━━━━━";
 
 /** The welcome bonus is one-time: once spent on a trade it reads as USED. */
 const bonusLine = (u: LexoraUser, bonus: number | string) =>
-  toCents(bonus) > 0 ? `${usd(bonus)} (not withdrawable)` : u.bonus_used ? "USED" : usd(0);
+  toCents(bonus) > 0 ? `${usd(bonus)} (not withdrawable)` : u.bonus_used ? "USED" : u.bonus_expired_at || (u.bonus_expires_at && Date.now() >= new Date(u.bonus_expires_at).getTime()) ? "EXPIRED" : usd(0);
+
+const creditTerms = (s: Settings) =>
+  `Promotional trading credit, not a cash deposit. Unspent credit expires 48 hours after claiming. It cannot be withdrawn or reused once spent. Trading results are simulated; profits are not guaranteed. Any profit withdrawal requires at least ${usd(s.min_withdrawal)} in eligible profit, an account at least ${s.withdrawal_wait_hours}h old, and a one-time ${usd(s.service_fee)} service charge before review. Deposits are optional to start trading.`;
+
+const creditExpiryNotice = (u: LexoraUser, bonus: number | string) => {
+  if (toCents(bonus) <= 0 || !u.bonus_expires_at) return "";
+  const expires = new Date(u.bonus_expires_at);
+  if (Number.isNaN(expires.getTime())) return "";
+  const minutes = Math.max(0, Math.ceil((expires.getTime() - Date.now()) / 60000));
+  const hours = Math.floor(minutes / 60);
+  return `\n\n⏱ Promotional credit expires: ${expires.toISOString().replace("T", " ").slice(0, 16)} UTC (${hours}h ${minutes % 60}m remaining). Only unspent credit expires.`;
+};
 
 export const appUrl = () =>
   process.env["APP_URL"] ?? "https://project--f7d5b767-7e2d-482f-a147-2287f89d926c.lovable.app";
@@ -179,7 +191,7 @@ async function welcomeScreen(u: LexoraUser, s: Settings) {
     u,
     `🤖 LEXORA\nAI trading, inside Telegram.\n\n${LINE}\n\nOur AI studies the market and picks the trade.\nYou only choose how much to put in.\n\n🎁 Welcome bonus: ${usd(
       s.welcome_bonus,
-    )}\nFree to start — no deposit needed.`,
+    )}\nFree to start — no deposit needed.\n\n${creditTerms(s)}`,
     kb([
       [{ text: `🎁 CLAIM ${usd(s.welcome_bonus)} BONUS`, data: "claim" }],
       [{ text: "ℹ️ HOW IT WORKS", data: "how" }],
@@ -201,7 +213,7 @@ export async function homeScreen(u: LexoraUser) {
       b.balance,
     )}\n🎁 Welcome bonus:        ${bonusLine(u, b.bonus)}\n💸 Withdrawable profit:  ${usd(
       Math.max(0, Number(b.profit)),
-    )}\n📊 Trades:               ${count ?? 0}\n\n${LINE}\nOnly withdrawable profit can be paid out — the welcome bonus is one-time trading capital.`,
+    )}\n📊 Trades:               ${count ?? 0}${creditExpiryNotice(u, b.bonus)}\n\n${LINE}\nOnly eligible profit can be considered for withdrawal; the promotional credit itself cannot be withdrawn. Trading results are simulated, not guaranteed earnings.`,
 
     kb([
       [{ text: "📈 TRADING", data: "trade" }],
@@ -225,7 +237,7 @@ async function howScreen(u: LexoraUser, s: Settings) {
       s.welcome_bonus,
     )}, you earn ${usd(
       s.referral_reward,
-    )}\n\n⚠️ Trading involves risk. Markets can move against a trade.`,
+    )}\n\n${creditTerms(s)}`,
     kb([nav()]),
   );
 }
@@ -546,9 +558,9 @@ async function walletScreen(u: LexoraUser, s: Settings) {
       b.referral_balance,
     )}\n\n${LINE}\nOnly withdrawable profit can be paid out — the ${usd(
       s.welcome_bonus,
-    )} bonus stays in the account for trading.\nWithdrawals: min ${usd(
+    )} credit is not withdrawable or reusable once spent.${creditExpiryNotice(u, b.bonus)}\nWithdrawals: min ${usd(
       s.min_withdrawal,
-    )} profit, ${s.withdrawal_wait_hours}h after registration.`,
+    )} eligible profit, ${s.withdrawal_wait_hours}h after registration; one-time ${usd(s.service_fee)} service charge before review. Trading results are simulated.`,
     kb([
       [{ text: "💳 DEPOSIT", data: "deposit" }, { text: "💸 WITHDRAW", data: "wd" }],
       [{ text: "📜 WITHDRAWALS", data: "wdlist" }],
@@ -886,16 +898,22 @@ async function historyScreen(u: LexoraUser) {
 /* ------------------------------ routing ------------------------------ */
 
 async function claimBonus(u: LexoraUser, s: Settings) {
-  const fresh = await db().from("users").select("bonus_claimed").eq("id", u.id).single();
-  if (fresh.data?.bonus_claimed) return homeScreen(u);
-  await db()
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 48 * 3600000).toISOString();
+  const { data: claimed, error } = await db()
     .from("users")
     .update({
       bonus_claimed: true,
-      bonus_claimed_at: new Date().toISOString(),
+      bonus_claimed_at: now.toISOString(),
+      bonus_expires_at: expiresAt,
       bonus_amount: s.welcome_bonus,
     })
-    .eq("id", u.id);
+    .eq("id", u.id)
+    .eq("bonus_claimed", false)
+    .select("id")
+    .maybeSingle();
+  if (error) throw error;
+  if (!claimed) return homeScreen(u);
   await applyBalance(
     u.id,
     { balance: s.welcome_bonus, bonus: s.welcome_bonus },
@@ -903,13 +921,14 @@ async function claimBonus(u: LexoraUser, s: Settings) {
   );
   await track(u.id, "bonus_claimed", { amount: s.welcome_bonus });
   u.bonus_claimed = true;
+  u.bonus_expires_at = expiresAt;
   await renderScreen(
     u,
     `🎉 CONGRATULATIONS!\n\nYour ${usd(
       s.welcome_bonus,
     )} welcome bonus has been added.\n\n💰 Balance: ${usd(
       s.welcome_bonus,
-    )}\n\n${LINE}\nYou're all set — let the AI find your first trade.`,
+    )}${creditExpiryNotice(u, s.welcome_bonus)}\n\n${LINE}\n${creditTerms(s)}`,
     kb([
       [{ text: "🚀 START TRADING", data: "newtrade" }],
       [{ text: "👥 INVITE & EARN", data: "invite" }],
