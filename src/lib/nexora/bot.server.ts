@@ -48,7 +48,7 @@ const bonusLine = (u: LexoraUser, bonus: number | string) => {
 };
 
 const creditTerms = (s: Settings) =>
-  `Promotional trading credit, not a cash deposit. Unspent credit expires 48 hours after claiming (existing claims: 48 hours from rollout). It cannot be withdrawn or reused once spent. Trading results are simulated; profits are not guaranteed. Any profit withdrawal requires at least ${usd(s.min_withdrawal)} in eligible profit, an account at least ${s.withdrawal_wait_hours}h old, and a one-time ${usd(s.service_fee)} service charge before review. No deposit is needed to start; trading access requires sharing on 2 platforms for 24h access.`;
+  `Promotional trading credit, not a cash deposit. Unspent credit expires 48 hours after claiming (existing claims: 48 hours from rollout). It cannot be withdrawn or reused once spent. Trading results are synthetic; profits are not guaranteed. Any profit withdrawal requires at least ${usd(s.min_withdrawal)} in eligible profit, an account at least ${s.withdrawal_wait_hours}h old, and a one-time ${usd(s.service_fee)} service charge before review. No deposit is needed to start; trading access requires sharing on 2 platforms for 24h access.`;
 
 const creditExpiryNotice = (u: LexoraUser, bonus: number | string) => {
   if (toCents(bonus) <= 0 || !u.bonus_expires_at) return "";
@@ -217,7 +217,7 @@ export async function homeScreen(u: LexoraUser) {
       b.balance,
     )}\n🎁 Welcome bonus:        ${bonusLine(u, b.bonus)}\n💸 Withdrawable profit:  ${usd(
       Math.max(0, Number(b.profit)),
-    )}\n📊 Trades:               ${count ?? 0}${creditExpiryNotice(u, b.bonus)}\n\n${LINE}\nOnly eligible profit can be considered for withdrawal; the promotional credit itself cannot be withdrawn. Trading results are simulated, not guaranteed earnings.`,
+    )}\n📊 Trades:               ${count ?? 0}${creditExpiryNotice(u, b.bonus)}\n\n${LINE}\nOnly eligible profit can be considered for withdrawal; the promotional credit itself cannot be withdrawn. Trading results are synthetic, not guaranteed earnings.`,
 
     kb([
       [{ text: "📈 TRADING", data: "trade" }],
@@ -564,7 +564,7 @@ async function walletScreen(u: LexoraUser, s: Settings) {
       s.welcome_bonus,
     )} credit is not withdrawable or reusable once spent.${creditExpiryNotice(u, b.bonus)}\nWithdrawals: min ${usd(
       s.min_withdrawal,
-    )} eligible profit, ${s.withdrawal_wait_hours}h after registration; one-time ${usd(s.service_fee)} service charge before review. Trading results are simulated.`,
+    )} eligible profit, ${s.withdrawal_wait_hours}h after registration; one-time ${usd(s.service_fee)} service charge before review. Trading results are synthetic.`,
     kb([
       [{ text: "💳 DEPOSIT", data: "deposit" }, { text: "💸 WITHDRAW", data: "wd" }],
       [{ text: "📜 WITHDRAWALS", data: "wdlist" }],
