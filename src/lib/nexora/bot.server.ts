@@ -217,7 +217,7 @@ export async function homeScreen(u: LexoraUser) {
       b.balance,
     )}\n🎁 Welcome bonus:        ${bonusLine(u, b.bonus)}\n💸 Withdrawable profit:  ${usd(
       Math.max(0, Number(b.profit)),
-    )}\n📊 Trades:               ${count ?? 0}${creditExpiryNotice(u, b.bonus)}\n\n${LINE}\nOnly eligible profit can be considered for withdrawal; the promotional credit itself cannot be withdrawn. Trading results are synthetic, not guaranteed earnings.`,
+    )}\n📊 Trades:               ${count ?? 0}${creditExpiryNotice(u, b.bonus)}\n\n${LINE}\nOnly eligible profit can be considered for withdrawal; the promotional credit itself cannot be withdrawn. Trading results are synthetic.`,
 
     kb([
       [{ text: "📈 TRADING", data: "trade" }],
