@@ -40,13 +40,24 @@ export type AudienceId = (typeof AUDIENCES)[number]["id"];
 
 type Recipient = { user_id: string; telegram_id: number };
 
+// The database returns at most 1000 rows per request, so read in pages.
+async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> {
+  const out: T[] = [];
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await build(from, from + PAGE - 1);
+    if (error) throw new Error(String((error as { message?: string }).message ?? error));
+    out.push(...(data ?? []));
+    if (!data || data.length < PAGE) break;
+  }
+  return out;
+}
+
 async function activeUsers(): Promise<Recipient[]> {
-  const { data } = await db()
-    .from("users")
-    .select("id,telegram_id")
-    .neq("status", "blocked")
-    .limit(20000);
-  return (data ?? []).map((u) => ({ user_id: u.id as string, telegram_id: Number(u.telegram_id) }));
+  const data = await fetchAll<{ id: string; telegram_id: number }>((a, b) =>
+    db().from("users").select("id,telegram_id").neq("status", "blocked").order("id").range(a, b) as never,
+  );
+  return data.map((u) => ({ user_id: u.id, telegram_id: Number(u.telegram_id) }));
 }
 
 /** Resolve the list of telegram recipients for an audience. */
@@ -68,23 +79,27 @@ export async function resolveAudience(
   }
 
   if (audience === "has_profit") {
-    const { data } = await db().from("balances").select("user_id,profit").gt("profit", 0);
-    return (data ?? [])
-      .map((b) => byId.get(b.user_id as string))
-      .filter((r): r is Recipient => Boolean(r));
+    const data = await fetchAll<{ user_id: string }>((a, b) =>
+      db().from("balances").select("user_id").gt("profit", 0).order("user_id").range(a, b) as never,
+    );
+    return data.map((b) => byId.get(b.user_id)).filter((r): r is Recipient => Boolean(r));
   }
 
   if (audience === "never_traded") {
-    const { data } = await db().from("trades").select("user_id").limit(50000);
-    const traded = new Set((data ?? []).map((t) => t.user_id as string));
+    const data = await fetchAll<{ user_id: string }>((a, b) =>
+      db().from("trades").select("user_id").order("id").range(a, b) as never,
+    );
+    const traded = new Set(data.map((t) => t.user_id));
     return base.filter((r) => !traded.has(r.user_id));
   }
 
   if (audience === "inactive") {
     const days = params.days && params.days > 0 ? params.days : 7;
     const since = new Date(Date.now() - days * 86400000).toISOString();
-    const { data } = await db().from("trades").select("user_id").gte("opened_at", since);
-    const recent = new Set((data ?? []).map((t) => t.user_id as string));
+    const data = await fetchAll<{ user_id: string }>((a, b) =>
+      db().from("trades").select("user_id").gte("opened_at", since).order("id").range(a, b) as never,
+    );
+    const recent = new Set(data.map((t) => t.user_id));
     return base.filter((r) => !recent.has(r.user_id));
   }
 
