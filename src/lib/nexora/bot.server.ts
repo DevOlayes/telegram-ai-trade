@@ -3,6 +3,10 @@
  * Business logic lives in core.server (accounts/balances), engine.server
  * (market + settlement) and referrals.server.
  */
+import { env } from "cloudflare:workers";
+
+const workerEnv = env as unknown as { APP_URL?: string; TELEGRAM_BOT_USERNAME?: string };
+
 import {
   applyBalance,
   db,
@@ -60,8 +64,8 @@ const creditExpiryNotice = (u: LexoraUser, bonus: number | string) => {
 };
 
 export const appUrl = () =>
-  process.env["APP_URL"] ?? "https://project--f7d5b767-7e2d-482f-a147-2287f89d926c.lovable.app";
-export const botUsername = () => process.env["TELEGRAM_BOT_USERNAME"] ?? "nexoraiaxbot";
+  workerEnv.APP_URL ?? "https://project--f7d5b767-7e2d-482f-a147-2287f89d926c.lovable.app";
+export const botUsername = () => workerEnv.TELEGRAM_BOT_USERNAME ?? "nexoraiaxbot";
 export const refLink = (code: string) => `https://t.me/${botUsername()}?start=${code}`;
 
 /** Consistent bottom navigation: back to the previous screen, plus home. */
