@@ -20,7 +20,6 @@ export default defineConfig({
   plugins: [externalizeCloudflareWorkersModule],
   nitro: {
     preset: "cloudflare-module",
-    plugins: ["./src/nitro-plugins/telegram-scheduled.ts"],
     output: {
       dir: "dist",
       serverDir: "dist/server",
