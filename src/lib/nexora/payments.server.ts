@@ -129,7 +129,7 @@ export async function sweepFees() {
       // Atomic expiry so the reserved profit is only released once.
       const closed = await db().refundWithdrawalAtomic({
         withdrawalId: row.id,
-        expectedStatus: row.status,
+        expectedStatus: "pending",
         expectedFeeStatus: "pending",
         status: "expired",
         feeStatus: "expired",
