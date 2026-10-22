@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { verifyAdminRequest } from "@/lib/nexora/admin-auth.server";
+import { verifyAdminRequest } from "@/lib/nexora/admin-auth-middleware";
 import { storeBroadcastMedia } from "@/lib/nexora/media.server";
 
 const TYPES: Record<string, string[]> = {
