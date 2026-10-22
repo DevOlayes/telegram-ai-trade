@@ -57,6 +57,3 @@ export const requireAdminAuth = createMiddleware({ type: "function" }).server(as
   setResponseHeader("Cache-Control", "no-store");
   return next({ context: { userId: username, adminUser: username } });
 });
-export async function verifyAdminRequest() {
-  return Boolean(await sessionUsername());
-}
