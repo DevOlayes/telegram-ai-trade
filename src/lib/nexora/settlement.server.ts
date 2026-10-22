@@ -5,6 +5,7 @@ import { activeTradeText } from "./bot.server";
 import { qualifyReferral } from "./referrals.server";
 import { editMessage, editPhoto, kb, sendPhoto } from "./telegram.server";
 import { IMG } from "./images.server";
+import { env } from "cloudflare:workers";
 
 const UPDATE_INTERVAL_MS = 2 * 60 * 1000;
 
@@ -12,7 +13,32 @@ export async function runTick() {
   const settings = await getSettings();
   const { error: expiryError } = await db().rpc("expire_promotional_credit", { p_user_id: null });
   if (expiryError) throw expiryError;
-  const { data: trades } = await db().from("trades").select("*").eq("status", "active").limit(200);
+  const media = (env as unknown as {
+    MEDIA?: {
+      get(key: string): Promise<string | null>;
+      put(key: string, value: string): Promise<void>;
+    };
+  }).MEDIA;
+  const cursorKey = "scheduler:trade-cursor";
+  const cursor = await media?.get(cursorKey).catch(() => null);
+  const tradeQuery = db()
+    .from("trades")
+    .select("*")
+    .eq("status", "active")
+    .order("id", { ascending: true })
+    .limit(200);
+  const { data: firstBatch } = cursor ? await tradeQuery.gt("id", cursor) : await tradeQuery;
+  let trades = firstBatch ?? [];
+  if (cursor && trades.length < 200) {
+    const { data: wrapped } = await db()
+      .from("trades")
+      .select("*")
+      .eq("status", "active")
+      .order("id", { ascending: true })
+      .limit(200 - trades.length);
+    const seen = new Set(trades.map((row) => String(row.id)));
+    trades = [...trades, ...(wrapped ?? []).filter((row) => !seen.has(String(row.id)))];
+  }
 
   let settled = 0;
   for (const raw of trades ?? []) {
@@ -117,6 +143,14 @@ export async function runTick() {
     await qualifyReferral(trade.user_id);
   }
 
+  if (trades.length) {
+    try {
+      await media?.put(cursorKey, String(trades[trades.length - 1].id));
+    } catch (error) {
+      console.error("Could not persist trade scheduler cursor", error);
+    }
+  }
+
   const { sweepFees } = await import("./payments.server");
   const fees = await sweepFees();
   const { matchDeposits } = await import("./deposits.server");
@@ -125,7 +159,7 @@ export async function runTick() {
   const broadcast = await drainBroadcasts(300);
 
   return {
-    checked: trades?.length ?? 0,
+    checked: trades.length,
     settled,
     ...fees,
     ...deposits,
