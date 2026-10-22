@@ -1,4 +1,4 @@
-// Isolated preview Worker config; production remains configured by wrangler.jsonc.
+// Isolated preview Worker config. Wrangler loads this file explicitly for preview deployments; production stays on wrangler.jsonc.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "telegram-ai-trade-preview",
