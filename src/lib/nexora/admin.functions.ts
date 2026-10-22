@@ -133,7 +133,7 @@ export const setWithdrawalStatus = createServerFn({ method: "POST" })
         withdrawalId: data.id,
         expectedStatus: "pending",
         status: "rejected",
-        ...(wd.service_fee_status === "pending" ? { feeStatus: "expired" } : {}),
+        ...(wd.service_fee_status === "pending" ? { feeStatusIfPending: "expired" } : {}),
         kind: "withdrawal_refund",
       });
       if (!refunded) throw new Error("Only pending withdrawals can be rejected.");
