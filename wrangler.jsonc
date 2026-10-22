@@ -10,6 +10,9 @@
   "triggers": {
     "crons": ["* * * * *"]
   },
+  "kv_namespaces": [
+    { "binding": "MEDIA", "id": "ce85639597944ec397ce20a945952be1" }
+  ],
   "d1_databases": [
     {
       "binding": "DB",
@@ -34,6 +37,9 @@
     "ENABLE_SCHEDULED_TICK": "true"
   },
   "previews": {
+    "kv_namespaces": [
+      { "binding": "MEDIA", "id": "01a2eca89e3942f5a375c43a87ca3e42" }
+    ],
     "d1_databases": [
       {
         "binding": "DB",
