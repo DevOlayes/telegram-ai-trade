@@ -202,9 +202,13 @@ export async function renderScreen(
     if (ok) return user.screen_message_id;
     await deleteMessage(user.telegram_id, user.screen_message_id);
   }
-  const sent = photo
+  let sent = photo
     ? await sendPhoto(user.telegram_id, photo, caption, markup, parseMode)
     : await sendMessage(user.telegram_id, text, markup, parseMode);
+  // If Telegram rejects the image URL or photo payload, keep the screen usable.
+  if (!sent && photo) {
+    sent = await sendMessage(user.telegram_id, text, markup, parseMode);
+  }
   const id = sent?.message_id ?? null;
   await db().from("users").update({ screen_message_id: id }).eq("id", user.id);
   user.screen_message_id = id;
