@@ -232,12 +232,13 @@ export async function drainBroadcasts(limit = 200) {
   for (const bc of active) {
     if (budget <= 0) break;
     if (typeof bc.media_url === "string" && bc.media_url.startsWith("broadcast-media:")) {
-      const { data: signed, error } = await db().storage.from("broadcast-media").createSignedUrl(bc.media_url.slice("broadcast-media:".length), 3600);
-      if (error || !signed) {
+      const { signedBroadcastMediaUrl } = await import("./media.server");
+      try {
+        bc.media_url = await signedBroadcastMediaUrl(bc.media_url.slice("broadcast-media:".length), 3600);
+      } catch (error) {
         console.error("Broadcast media unavailable", error);
         continue;
       }
-      bc.media_url = signed.signedUrl;
     }
     const { data: pending } = await db()
       .from("broadcast_recipients")
