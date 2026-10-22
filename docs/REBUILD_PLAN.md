@@ -32,6 +32,19 @@ The types describe 17 tables: `users`, `user_roles`, `balances`, `transactions`,
 
 They also describe the `has_role` and `expire_promotional_credit` database functions and the `app_role` enum. D1 equivalents must preserve their existing semantics. Generated types do not fully specify defaults, indexes, constraints, or triggers, so inspect every query and any available migrations before finalizing the schema.
 
+## Current progress
+
+- [x] Created Cloudflare D1 database `telegram-ai-trade` in the connected Cloudflare account.
+- [x] Added `migrations/0001_initial_schema.sql` for the 17 tables represented by the existing generated types.
+- [x] Applied the initial table/index schema to the new D1 database and verified the expected 17 application tables exist.
+- [x] Added the D1 binding (`DB`) and migrations directory to `wrangler.jsonc`.
+- [ ] Port the existing Supabase query-builder usage to D1 while preserving return shapes and behavior.
+- [ ] Recreate the `expire_promotional_credit` and `has_role` semantics.
+- [ ] Port authentication behavior used by the admin UI.
+- [ ] Build and test the full application on Cloudflare before cutover.
+
+The initial SQL is reconstructed from generated types and repository usage. It still needs comparison against all query paths and defaults as the data-access layer is ported; it is not yet proof of an exact source-database export.
+
 ## Migration sequence
 
 1. Inventory existing queries, schema types, migrations, environment variables, Storage use, and auth behavior.
