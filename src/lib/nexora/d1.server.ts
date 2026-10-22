@@ -17,11 +17,11 @@ type D1Statement = {
 type D1DatabaseLike = { prepare: (sql: string) => D1Statement };
 
 const ID_TABLES = new Set([
-  "users", "trades", "transactions", "referrals", "referral_rewards", "milestones",
+  "users", "user_roles", "user_milestones", "admin_actions", "trades", "transactions", "referrals", "referral_rewards", "milestones",
   "withdrawals", "deposits", "events", "broadcasts", "broadcast_recipients",
 ]);
 const JSON_COLUMNS = new Set([
-  "ui_state", "share_platforms", "value", "durations", "risk_profiles", "buttons",
+  "ui_state", "share_platforms", "risk_flags", "value", "durations", "risk_profiles", "buttons",
   "audience_params", "payload", "metadata",
 ]);
 
@@ -43,6 +43,11 @@ function decodeRow(row: Record<string, unknown>): Record<string, unknown> {
 function encode(value: unknown): unknown {
   if (value !== null && typeof value === "object") return JSON.stringify(value);
   return value;
+}
+
+function encodeColumn(table: string, column: string, value: unknown): unknown {
+  if (value !== null && JSON_COLUMNS.has(column)) return JSON.stringify(value);
+  return encode(value);
 }
 
 type Filter = { column: string; op: string; value?: unknown };
@@ -145,10 +150,10 @@ class D1Query implements PromiseLike<{ data: any; error: any; count?: number }> 
       if (f.op === "IN" || f.op === "NOT IN") {
         const list = Array.isArray(f.value) ? f.value : [];
         if (!list.length) return f.op === "IN" ? "1 = 0" : "1 = 1";
-        params.push(...list.map(encode));
+        params.push(...list.map((value) => encodeColumn(this.table, f.column, value)));
         return `${col} ${f.op} (${list.map(() => "?").join(", ")})`;
       }
-      params.push(encode(f.value));
+      params.push(encodeColumn(this.table, f.column, f.value));
       return `${col} ${f.op} ?`;
     }).join(" AND ");
   }
@@ -192,18 +197,18 @@ class D1Query implements PromiseLike<{ data: any; error: any; count?: number }> 
           let statement = `INSERT INTO ${ident(this.table)} (${cols}) VALUES (${placeholders})`;
           if (this.conflictColumns.length) {
             statement += " ON CONFLICT (" + this.conflictColumns.map(ident).join(", ") + ") DO UPDATE SET " +
-              keys.filter((key) => !this.conflictColumns.includes(key)).map((key) => `${ident(key)} = excluded.${ident(key)}`).join(", ");
-            if (keys.every((key) => this.conflictColumns.includes(key))) statement = `INSERT OR IGNORE INTO ${ident(this.table)} (${cols}) VALUES (${placeholders})`;
+              keys.filter((key) => !this.conflictColumns.includes(key) && key !== "id").map((key) => `${ident(key)} = excluded.${ident(key)}`).join(", ");
+            if (keys.every((key) => this.conflictColumns.includes(key) || key === "id")) statement = `INSERT OR IGNORE INTO ${ident(this.table)} (${cols}) VALUES (${placeholders})`;
           }
           if (this.returning) statement += ` RETURNING ${this.columns}`;
-          const result = await this.sqlDb.prepare(statement).bind(...keys.map((key) => encode(row[key]))).all<Record<string, unknown>>();
+          const result = await this.sqlDb.prepare(statement).bind(...keys.map((key) => encodeColumn(this.table, key, row[key]))).all<Record<string, unknown>>();
           rows.push(...(result.results ?? []).map(decodeRow));
         }
       } else if (this.action === "update") {
         const keys = Object.keys(this.patch);
         if (!keys.length) return { data: [], error: null, ...(count === undefined ? {} : { count }) };
         const set = keys.map((key) => `${ident(key)} = ?`).join(", ");
-        queryParams = [...keys.map((key) => encode(this.patch[key])), ...params];
+        queryParams = [...keys.map((key) => encodeColumn(this.table, key, this.patch[key])), ...params];
         sql = `UPDATE ${ident(this.table)} SET ${set}${where}${this.returning ? ` RETURNING ${this.columns}` : ""}`;
         const result = await this.sqlDb.prepare(sql).bind(...queryParams).all<Record<string, unknown>>();
         rows = (result.results ?? []).map(decodeRow);
