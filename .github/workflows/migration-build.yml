@@ -40,4 +40,4 @@ jobs:
         run: bunx tsc --noEmit
       - name: Lint application
         run: >-
-          bun run lint -- --rule 'prettier/prettier: off' --rule '@typescript-eslint/no-explicit-any: off'
+          bunx eslint . --rule 'prettier/prettier: off' --rule '@typescript-eslint/no-explicit-any: off'
