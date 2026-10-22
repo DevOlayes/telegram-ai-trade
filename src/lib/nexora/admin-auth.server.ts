@@ -25,10 +25,20 @@ function constantTimeEqual(a: string, b: string) {
 }
 function config() {
   const username = process.env["ADMIN_USERNAME"];
-  const password = process.env["ADMIN_PASSWORD"];
+  const passwordHash = process.env["ADMIN_PASSWORD_HASH"];
   const secret = process.env["SESSION_SECRET"];
-  if (!username || !password || !secret || secret.length < 32) return null;
-  return { username, password, secret };
+  if (!username || !passwordHash || !secret || secret.length < 32) return null;
+  return { username, passwordHash, secret };
+}
+async function verifyPassword(password: string, encodedHash: string) {
+  const [algorithm, iterationText, saltText, expected] = encodedHash.split("$");
+  const iterations = Number(iterationText);
+  if (algorithm !== "pbkdf2-sha256" || !Number.isInteger(iterations) || iterations < 100000 || iterations > 1000000 || !saltText || !expected) return false;
+  let salt: Uint8Array;
+  try { salt = fromBase64Url(saltText); } catch { return false; }
+  const key = await crypto.subtle.importKey("raw", text.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations, hash: "SHA-256" }, key, 256);
+  return constantTimeEqual(toBase64Url(new Uint8Array(bits)), expected);
 }
 async function sign(payload: string, secret: string) {
   const key = await crypto.subtle.importKey("raw", text.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -59,7 +69,7 @@ async function sessionUsername() {
 }
 export async function loginAdmin(username: string, password: string) {
   const cfg = config();
-  if (!cfg) throw new Error("Admin login is not configured. Set ADMIN_USERNAME, ADMIN_PASSWORD, and SESSION_SECRET in Cloudflare.");
+  if (!cfg) throw new Error("Admin login is not configured. Set ADMIN_USERNAME, ADMIN_PASSWORD_HASH, and SESSION_SECRET in Cloudflare.");
   const request = getRequest();
   const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
   const kv = (await import("cloudflare:workers")).env as unknown as { MEDIA?: { get(key: string): Promise<string | null>; put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>; delete(key: string): Promise<void> } };
@@ -67,7 +77,8 @@ export async function loginAdmin(username: string, password: string) {
   let attempts = 0;
   try { attempts = Number(await kv.MEDIA?.get(rateKey) ?? 0); } catch { /* best effort */ }
   if (attempts >= 8) throw new Error("Too many sign-in attempts. Try again in 15 minutes.");
-  const valid = constantTimeEqual(username, cfg.username) && constantTimeEqual(password, cfg.password);
+  const passwordValid = await verifyPassword(password, cfg.passwordHash);
+  const valid = constantTimeEqual(username, cfg.username) && passwordValid;
   if (!valid) {
     try { await kv.MEDIA?.put(rateKey, String(attempts + 1), { expirationTtl: 900 }); } catch { /* best effort */ }
     throw new Error("Invalid username or password.");
