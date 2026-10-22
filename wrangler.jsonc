@@ -32,6 +32,7 @@
     "APP_URL": "https://telegram-ai-trade.godwin2000vic.workers.dev",
     "ASSET_HOST": "https://telegram-ai-trade.godwin2000vic.workers.dev",
     "TELEGRAM_BOT_USERNAME": "nexoraiaxbot",
+    "ADMIN_USERNAME": "admin",
     "ENABLE_SCHEDULED_TICK": "true"
   },
   "previews": {
@@ -50,6 +51,7 @@
       "APP_URL": "https://telegram-ai-trade-preview-telegram-ai-trade.godwin2000vic.workers.dev",
       "ASSET_HOST": "https://telegram-ai-trade-preview-telegram-ai-trade.godwin2000vic.workers.dev",
       "TELEGRAM_BOT_USERNAME": "nexoraiaxbot",
+      "ADMIN_USERNAME": "admin",
       "ENABLE_SCHEDULED_TICK": "false"
     }
   }
