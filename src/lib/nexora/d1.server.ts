@@ -23,6 +23,7 @@ const ID_TABLES = new Set([
   "users", "user_roles", "user_milestones", "admin_actions", "trades", "transactions", "referrals", "referral_rewards", "milestones",
   "withdrawals", "deposits", "events", "broadcasts", "broadcast_recipients",
 ]);
+const DEFAULT_CONFLICT_COLUMNS: Record<string, string[]> = { system_settings: ["key"] };
 const JSON_COLUMNS = new Set([
   "ui_state", "share_platforms", "risk_flags", "value", "durations", "risk_profiles", "buttons",
   "audience_params", "payload", "metadata",
@@ -61,7 +62,7 @@ class D1Query implements PromiseLike<{ data: any; error: any; count?: number }> 
   private values: Record<string, unknown>[] = [];
   private patch: Record<string, unknown> = {};
   private filters: Filter[] = [];
-  private sorts: { column: string; ascending: boolean }[] = [];
+  private sorts: { column: string; ascending: boolean; nullsFirst?: boolean }[] = [];
   private maxRows: number | null = null;
   private offset: number | null = null;
   private singleMode: "single" | "maybeSingle" | null = null;
@@ -102,7 +103,7 @@ class D1Query implements PromiseLike<{ data: any; error: any; count?: number }> 
       if (ID_TABLES.has(this.table) && !row.id) row.id = crypto.randomUUID();
       return row;
     });
-    this.conflictColumns = (options?.onConflict ?? "").split(",").map((v) => v.trim()).filter(Boolean);
+    this.conflictColumns = (options?.onConflict ?? DEFAULT_CONFLICT_COLUMNS[this.table]?.join(",") ?? "").split(",").map((v) => v.trim()).filter(Boolean);
     return this;
   }
 
@@ -136,8 +137,8 @@ class D1Query implements PromiseLike<{ data: any; error: any; count?: number }> 
     }
     throw new Error(`Unsupported filter operator: ${operator}`);
   }
-  order(column: string, options?: { ascending?: boolean }) {
-    this.sorts.push({ column, ascending: options?.ascending !== false });
+  order(column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) {
+    this.sorts.push({ column, ascending: options?.ascending !== false, ...(options?.nullsFirst === undefined ? {} : { nullsFirst: options.nullsFirst }) });
     return this;
   }
   limit(n: number) { this.maxRows = Math.max(0, Math.trunc(n)); return this; }
@@ -181,7 +182,7 @@ class D1Query implements PromiseLike<{ data: any; error: any; count?: number }> 
         if (this.headOnly) return { data: null, error: null, ...(count === undefined ? {} : { count }) };
         sql = `SELECT ${this.columns} FROM ${ident(this.table)}${where}`;
         queryParams = [...params];
-        if (this.sorts.length) sql += " ORDER BY " + this.sorts.map((s) => `${ident(s.column)} ${s.ascending ? "ASC" : "DESC"}`).join(", ");
+        if (this.sorts.length) sql += " ORDER BY " + this.sorts.map((s) => `${ident(s.column)} ${s.ascending ? "ASC" : "DESC"}${s.nullsFirst === undefined ? "" : s.nullsFirst ? " NULLS FIRST" : " NULLS LAST"}`).join(", ");
         if (this.maxRows !== null) { sql += " LIMIT ?"; queryParams.push(this.maxRows); }
         if (this.offset !== null) {
           if (this.maxRows === null) sql += " LIMIT -1";
@@ -290,21 +291,26 @@ export function d1Db() {
       try {
         if (name !== "expire_promotional_credit") throw new Error(`Unsupported D1 RPC: ${name}`);
         const userId = args.p_user_id ?? null;
-        const expired = await sqlDb.prepare(
-          `UPDATE balances
-             SET balance = MAX(0, balance - bonus), bonus = 0, updated_at = ?
-           WHERE bonus > 0 AND user_id IN (
-             SELECT id FROM users WHERE bonus_expires_at IS NOT NULL AND bonus_expires_at <= ?
+        const now = new Date().toISOString();
+        const results = await sqlDb.batch([
+          sqlDb.prepare(
+            `UPDATE balances
+               SET balance = MAX(0, balance - bonus), bonus = 0, updated_at = ?
+             WHERE bonus > 0 AND user_id IN (
+               SELECT id FROM users WHERE bonus_expires_at IS NOT NULL AND bonus_expires_at <= ?
+                 AND (? IS NULL OR id = ?)
+             )`,
+          ).bind(now, now, userId, userId),
+          sqlDb.prepare(
+            `UPDATE users SET bonus_expired_at = ?
+             WHERE bonus_expired_at IS NULL AND bonus_used = 0
+               AND bonus_expires_at IS NOT NULL AND bonus_expires_at <= ?
                AND (? IS NULL OR id = ?)
-           ) RETURNING user_id`,
-        ).bind(new Date().toISOString(), new Date().toISOString(), userId, userId).all();
-        const ids = (expired.results ?? []).map((row: any) => row.user_id);
-        if (ids.length) {
-          const placeholders = ids.map(() => "?").join(", ");
-          await sqlDb.prepare(`UPDATE users SET bonus_expired_at = ? WHERE id IN (${placeholders})`)
-            .bind(new Date().toISOString(), ...ids).run();
-        }
-        return { data: ids.length, error: null };
+               AND EXISTS (SELECT 1 FROM balances WHERE balances.user_id = users.id AND balances.bonus = 0)`,
+          ).bind(now, now, userId, userId),
+        ]);
+        if (results.some((result) => result.success === false)) throw new Error("Could not expire promotional credit");
+        return { data: Number(results[0]?.meta?.changes ?? 0), error: null };
       } catch (error) {
         return { data: null, error: { message: error instanceof Error ? error.message : String(error), cause: error } };
       }
