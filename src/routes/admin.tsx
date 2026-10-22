@@ -33,6 +33,7 @@ import {
   setWithdrawalStatus,
   updateSetting,
 } from "@/lib/nexora/admin.functions";
+import { adminLogout } from "@/lib/nexora/admin-auth.server";
 
 
 export const Route = createFileRoute("/admin")({
@@ -807,6 +808,10 @@ function Shell({
   onTab: (t: Tab) => void;
   topBar: React.ReactNode;
 }) {
+  const logout = async () => {
+    await adminLogout();
+    window.location.assign("/auth");
+  };
   return (
     <div className="dark min-h-screen bg-background text-foreground">
       <div className="flex min-h-screen">
@@ -848,9 +853,10 @@ function Shell({
             ))}
           </div>
 
-          {topBar && (
-            <div className="mb-6 flex flex-wrap items-center gap-3">{topBar}</div>
-          )}
+          <div className="mb-6 flex flex-wrap items-center gap-3">
+            {topBar}
+            <button onClick={() => void logout()} className="ml-auto rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground">Sign out</button>
+          </div>
           {children}
         </main>
       </div>
