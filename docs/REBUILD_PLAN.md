@@ -36,14 +36,16 @@ They also describe the `has_role` and `expire_promotional_credit` database funct
 
 - [x] Created Cloudflare D1 database `telegram-ai-trade` in the connected Cloudflare account.
 - [x] Added `migrations/0001_initial_schema.sql` for the 17 tables represented by the existing generated types.
-- [x] Applied the initial table/index schema to the new D1 database and verified the expected 17 application tables exist.
+- [x] Reconciled the D1 schema against the SQL migration files already tracked in the repository.
+- [x] Applied the table/index schema and seeded 18 settings, the 5 existing trading pairs, and 4 referral milestones.
+- [x] Verified all 17 application tables and seeded rows exist in the new D1 database.
 - [x] Added the D1 binding (`DB`) and migrations directory to `wrangler.jsonc`.
 - [ ] Port the existing Supabase query-builder usage to D1 while preserving return shapes and behavior.
 - [ ] Recreate the `expire_promotional_credit` and `has_role` semantics.
 - [ ] Port authentication behavior used by the admin UI.
 - [ ] Build and test the full application on Cloudflare before cutover.
 
-The initial SQL is reconstructed from generated types and repository usage. It still needs comparison against all query paths and defaults as the data-access layer is ported; it is not yet proof of an exact source-database export.
+The D1 schema and initial seed values were reconciled against the SQL migrations committed in this repository. D1 stores JSON-valued fields as text, and generated IDs must be normalized to UUID format by the D1 data-access layer where the current app expects UUIDs. This is a schema/configuration migration only; it does not import old user records.
 
 ## Migration sequence
 
