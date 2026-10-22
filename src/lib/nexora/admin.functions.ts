@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireAdminAuth } from "@/lib/nexora/admin-auth.server";
+import { requireAdminAuth } from "@/lib/nexora/admin-auth-middleware";
 import { z } from "zod";
 
 async function assertAdmin(context: { adminUser?: string }) {
