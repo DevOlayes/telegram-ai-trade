@@ -7,6 +7,9 @@
     "nodejs_compat"
   ],
   "workers_dev": true,
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
   "d1_databases": [
     {
       "binding": "DB",
@@ -27,7 +30,8 @@
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_a2waNRebUzA36a79jTX1Sg_VPnt6b6Q",
     "APP_URL": "https://telegram-ai-trade.godwin2000vic.workers.dev",
     "ASSET_HOST": "https://telegram-ai-trade.godwin2000vic.workers.dev",
-    "TELEGRAM_BOT_USERNAME": "nexoraiaxbot"
+    "TELEGRAM_BOT_USERNAME": "nexoraiaxbot",
+    "ENABLE_SCHEDULED_TICK": "true"
   },
   "previews": {
     "d1_databases": [
@@ -43,7 +47,8 @@
       "SUPABASE_PUBLISHABLE_KEY": "preview-disabled",
       "APP_URL": "https://preview.invalid",
       "ASSET_HOST": "https://preview.invalid",
-      "TELEGRAM_BOT_USERNAME": "nexoraiaxbot"
+      "TELEGRAM_BOT_USERNAME": "nexoraiaxbot",
+      "ENABLE_SCHEDULED_TICK": "false"
     }
   }
 }
