@@ -233,6 +233,19 @@ const broadcastInputSchema = z.object({
   buttons: z.array(z.object({ text: z.string().min(1).max(64), action: z.string().min(1).max(100) })).max(3).default([]),
 });
 
+export const previewBroadcastAudience = createServerFn({ method: "POST" })
+  .middleware([requireAdminAuth])
+  .inputValidator((input: unknown) => z.object({
+    audience: broadcastInputSchema.shape.audience,
+    days: z.number().int().min(1).max(365).optional(),
+  }).parse(input))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context as never);
+    const { resolveAudience } = await import("@/lib/nexora/broadcast.server");
+    const recipients = await resolveAudience(data.audience, data.days ? { days: data.days } : {});
+    return { count: recipients.length };
+  });
+
 export const listBroadcastMedia = createServerFn({ method: "GET" })
   .middleware([requireAdminAuth])
   .handler(async () => {
