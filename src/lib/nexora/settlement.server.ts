@@ -29,15 +29,14 @@ export async function runTick() {
     .limit(200);
   const { data: firstBatch } = cursor ? await tradeQuery.gt("id", cursor) : await tradeQuery;
   let trades = firstBatch ?? [];
-  if (cursor && trades.length < 200) {
+  if (cursor && trades.length === 0) {
     const { data: wrapped } = await db()
       .from("trades")
       .select("*")
       .eq("status", "active")
       .order("id", { ascending: true })
-      .limit(200 - trades.length);
-    const seen = new Set(trades.map((row) => String(row.id)));
-    trades = [...trades, ...(wrapped ?? []).filter((row) => !seen.has(String(row.id)))];
+      .limit(200);
+    trades = wrapped ?? [];
   }
 
   let settled = 0;
