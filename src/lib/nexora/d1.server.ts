@@ -249,6 +249,60 @@ export function d1Db() {
   if (!sqlDb) throw new Error("Cloudflare D1 binding DB is unavailable. Check wrangler.jsonc and deploy environment.");
   return {
     from: (table: string) => new D1Query(sqlDb, table),
+    async settleTradeAtomic(input: {
+      tradeId: string;
+      result: string;
+      pnl: number;
+      currentPrice: number;
+      promoCap: number | null;
+      kind: string;
+    }) {
+      const settledAt = new Date().toISOString();
+      const updatedAt = new Date().toISOString();
+      const statements = [
+        sqlDb.prepare(`UPDATE trades
+          SET status = 'settled', result = ?,
+              pnl = CASE WHEN ? IS NULL THEN ? ELSE MIN(?, MAX(0, ? - COALESCE(
+                (SELECT profit FROM balances WHERE user_id = trades.user_id), 0
+              ))) END,
+              current_price = ?, settled_at = ?
+          WHERE id = ? AND status = 'active'`).bind(
+            input.result,
+            input.promoCap,
+            input.pnl,
+            input.pnl,
+            input.promoCap,
+            input.currentPrice,
+            settledAt,
+            input.tradeId,
+          ),
+        sqlDb.prepare(`INSERT INTO balances (user_id)
+          SELECT user_id FROM trades WHERE id = ? AND status = 'settled' AND settled_at = ?
+          ON CONFLICT(user_id) DO NOTHING`).bind(input.tradeId, settledAt),
+        sqlDb.prepare(`UPDATE balances
+          SET balance = ROUND(balance + (SELECT amount + pnl FROM trades WHERE id = ? AND settled_at = ?), 2),
+              profit = ROUND(profit + (SELECT pnl FROM trades WHERE id = ? AND settled_at = ?), 2),
+              updated_at = ?
+          WHERE user_id = (SELECT user_id FROM trades WHERE id = ? AND status = 'settled' AND settled_at = ?)`).bind(
+            input.tradeId, settledAt,
+            input.tradeId, settledAt,
+            updatedAt,
+            input.tradeId, settledAt,
+          ),
+        sqlDb.prepare(`INSERT INTO transactions (user_id, kind, amount, balance_after, ref_id, note)
+          SELECT t.user_id, ?, t.pnl, b.balance, t.id, NULL
+          FROM trades t JOIN balances b ON b.user_id = t.user_id
+          WHERE t.id = ? AND t.status = 'settled' AND t.settled_at = ?`).bind(
+            input.kind, input.tradeId, settledAt,
+          ),
+      ];
+      const results = await sqlDb.batch(statements);
+      if (results.some((result) => result.success === false)) throw new Error("Atomic trade settlement failed");
+      const row = await sqlDb.prepare(
+        "SELECT id, user_id, amount, pnl, settled_at FROM trades WHERE id = ? AND status = 'settled' AND settled_at = ?",
+      ).bind(input.tradeId, settledAt).first<Record<string, unknown>>();
+      return row;
+    },
     async applyBalanceAtomic(
       userId: string,
       delta: { balance?: number; bonus?: number; profit?: number; referral_balance?: number },
