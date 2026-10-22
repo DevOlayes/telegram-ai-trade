@@ -4,6 +4,14 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
+  // Cloudflare's built-in Workers modules are resolved by the Workers runtime,
+  // not by Vite's Node-based SSR bundling step. Keep the import external so the
+  // generated Worker can resolve it at runtime.
+  build: {
+    rolldownOptions: {
+      external: ["cloudflare:workers"],
+    },
+  },
   nitro: {
     preset: "cloudflare-module",
     output: {
