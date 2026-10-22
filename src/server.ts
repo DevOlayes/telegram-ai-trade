@@ -45,39 +45,6 @@ function isH3SwallowedErrorBody(body: string): boolean {
 }
 
 export default {
-  async scheduled(
-    controller: { scheduledTime: number; cron: string },
-    env: { ENABLE_SCHEDULED_TICK?: string },
-    ctx: { waitUntil: (promise: Promise<unknown>) => void },
-  ) {
-    await (async () => {
-      try {
-        const { ensureTelegramWebhook } = await import("./lib/nexora/telegram.server");
-        const webhookStatus = await ensureTelegramWebhook();
-        const { db } = await import("./lib/nexora/core.server");
-        await db().from("system_settings").upsert({
-          key: "telegram_webhook_health",
-          value: { checked_at: new Date().toISOString(), ...webhookStatus },
-        });
-        console.log("Telegram webhook check", webhookStatus);
-      } catch (error) {
-        console.error("Telegram webhook registration check failed", error);
-      }
-      if (env.ENABLE_SCHEDULED_TICK !== "true") return;
-      try {
-        const { runTick } = await import("./lib/nexora/settlement.server");
-        const result = await runTick();
-        console.log("nexora scheduled tick completed", {
-          cron: controller.cron,
-          scheduledTime: controller.scheduledTime,
-          ...result,
-        });
-      } catch (error) {
-        console.error("nexora scheduled tick failed", error);
-        throw error;
-      }
-    })();
-  },
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
       const handler = await getServerEntry();
