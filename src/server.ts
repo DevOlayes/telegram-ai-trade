@@ -71,7 +71,7 @@ export default {
         console.error("nexora scheduled tick failed", error);
         throw error;
       }
-    })());
+    })();
   },
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
