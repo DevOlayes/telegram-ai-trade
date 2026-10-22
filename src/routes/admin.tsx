@@ -33,7 +33,7 @@ import {
   setWithdrawalStatus,
   updateSetting,
 } from "@/lib/nexora/admin.functions";
-import { adminLogout } from "@/lib/nexora/admin-auth.server";
+import { adminLogout } from "@/lib/nexora/admin.functions";
 
 
 export const Route = createFileRoute("/admin")({
