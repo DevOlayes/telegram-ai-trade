@@ -64,8 +64,3 @@ export async function logoutAdmin() {
   setResponseHeader("Cache-Control", "no-store");
   return { ok: true };
 }
-export async function getAdminSessionStatus() {
-  setResponseHeader("Cache-Control", "no-store");
-  // The middleware's cookie verifier is intentionally not exposed to client code.
-  return { authenticated: Boolean(process.env["ADMIN_USERNAME"] && process.env["SESSION_SECRET"]) };
-}
