@@ -5,7 +5,7 @@
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS users (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   telegram_id INTEGER NOT NULL UNIQUE,
   username TEXT,
   first_name TEXT,
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS user_roles (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   user_id TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('admin', 'user')),
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS balances (
 );
 
 CREATE TABLE IF NOT EXISTS transactions (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   user_id TEXT NOT NULL,
   kind TEXT NOT NULL,
   amount REAL NOT NULL,
@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 );
 
 CREATE TABLE IF NOT EXISTS trades (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   user_id TEXT NOT NULL,
   symbol TEXT NOT NULL,
   direction TEXT NOT NULL,
@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS trades (
 );
 
 CREATE TABLE IF NOT EXISTS trading_pairs (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   symbol TEXT NOT NULL UNIQUE,
   base_price REAL NOT NULL,
   volatility REAL NOT NULL DEFAULT 0,
@@ -100,7 +100,7 @@ CREATE TABLE IF NOT EXISTS trading_pairs (
 );
 
 CREATE TABLE IF NOT EXISTS deposits (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   user_id TEXT NOT NULL,
   amount REAL NOT NULL,
   unique_amount REAL NOT NULL,
@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS deposits (
 );
 
 CREATE TABLE IF NOT EXISTS withdrawals (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   user_id TEXT NOT NULL,
   amount REAL NOT NULL,
   wallet_address TEXT NOT NULL,
@@ -133,7 +133,7 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 );
 
 CREATE TABLE IF NOT EXISTS referrals (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   referrer_id TEXT NOT NULL,
   referred_id TEXT NOT NULL UNIQUE,
   status TEXT NOT NULL DEFAULT 'pending',
@@ -145,7 +145,7 @@ CREATE TABLE IF NOT EXISTS referrals (
 );
 
 CREATE TABLE IF NOT EXISTS referral_rewards (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   user_id TEXT NOT NULL,
   referral_id TEXT,
   kind TEXT NOT NULL DEFAULT 'referral',
@@ -164,7 +164,7 @@ CREATE TABLE IF NOT EXISTS milestones (
 );
 
 CREATE TABLE IF NOT EXISTS user_milestones (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   user_id TEXT NOT NULL,
   milestone_id TEXT NOT NULL,
   reached_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
@@ -180,7 +180,7 @@ CREATE TABLE IF NOT EXISTS system_settings (
 );
 
 CREATE TABLE IF NOT EXISTS admin_actions (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   admin_id TEXT,
   action TEXT NOT NULL,
   target TEXT,
@@ -189,7 +189,7 @@ CREATE TABLE IF NOT EXISTS admin_actions (
 );
 
 CREATE TABLE IF NOT EXISTS broadcasts (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   title TEXT,
   body TEXT NOT NULL,
   media_type TEXT NOT NULL DEFAULT 'none',
@@ -208,7 +208,7 @@ CREATE TABLE IF NOT EXISTS broadcasts (
 );
 
 CREATE TABLE IF NOT EXISTS broadcast_recipients (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16))),
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   broadcast_id TEXT NOT NULL,
   user_id TEXT NOT NULL,
   telegram_id INTEGER NOT NULL,
