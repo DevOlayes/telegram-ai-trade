@@ -1,4 +1,6 @@
 // Telegram Bot API transport + clean-chat helpers (edit-in-place, delete temp).
+import { createHash } from "node:crypto";
+import { env } from "cloudflare:workers";
 import { db } from "./core.server";
 
 const API = () => `https://api.telegram.org/bot${process.env["TELEGRAM_BOT_TOKEN"]}`;
@@ -123,6 +125,38 @@ export async function setCommands() {
       { command: "how", description: "ℹ️ How it works" },
     ],
   });
+}
+
+
+/** Ensure the Telegram webhook is registered after production secrets are configured. */
+export async function ensureTelegramWebhook() {
+  const token = process.env["TELEGRAM_BOT_TOKEN"];
+  const appUrl = process.env["APP_URL"];
+  if (!token || !appUrl?.startsWith("https://")) return { configured: false, reason: "missing configuration" };
+
+  const kv = (env as unknown as { MEDIA?: { get(key: string): Promise<string | null>; put(key: string, value: string): Promise<void> } }).MEDIA;
+  const fingerprint = createHash("sha256").update(token).digest("hex");
+  const marker = "telegram:webhook-token-fingerprint";
+  try {
+    if (await kv?.get(marker) === fingerprint) return { configured: true, changed: false };
+  } catch (error) {
+    console.error("Could not read Telegram webhook setup marker", error);
+  }
+
+  const secretToken = createHash("sha256").update(`telegram-webhook:${token}`).digest("base64url");
+  const result = await call<boolean>("setWebhook", {
+    url: `${appUrl.replace(/\\/$/, "")}/api/public/telegram/webhook`,
+    secret_token: secretToken,
+    allowed_updates: ["message", "callback_query"],
+  });
+  if (result !== true) return { configured: false, reason: "Telegram rejected webhook setup" };
+  await setCommands();
+  try {
+    await kv?.put(marker, fingerprint);
+  } catch (error) {
+    console.error("Could not save Telegram webhook setup marker", error);
+  }
+  return { configured: true, changed: true };
 }
 
 export type ScreenOpts = { photo?: string; parseMode?: "HTML" };
