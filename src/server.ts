@@ -54,6 +54,11 @@ export default {
       try {
         const { ensureTelegramWebhook } = await import("./lib/nexora/telegram.server");
         const webhookStatus = await ensureTelegramWebhook();
+        const { db } = await import("./lib/nexora/core.server");
+        await db().from("system_settings").upsert({
+          key: "telegram_webhook_health",
+          value: { checked_at: new Date().toISOString(), ...webhookStatus },
+        });
         console.log("Telegram webhook check", webhookStatus);
       } catch (error) {
         console.error("Telegram webhook registration check failed", error);
