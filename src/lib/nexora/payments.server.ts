@@ -1,6 +1,6 @@
 // Withdrawal service-charge payments: on-chain USDT (TRC-20) verification.
 // The service charge is a STATIC amount (settings.service_fee, default $4.00).
-import { applyBalance, db, getSettings, usd } from "./core.server";
+import { db, getSettings, usd } from "./core.server";
 import { sendMessage } from "./telegram.server";
 import { recentTransfers, transferAmount, usdtContract } from "./tron.server";
 
@@ -127,23 +127,15 @@ export async function sweepFees() {
     const started = row.fee_requested_at ? new Date(row.fee_requested_at).getTime() : Date.now();
     if (Date.now() - started > windowMin * 60000) {
       // Atomic expiry so the reserved profit is only released once.
-      const { data: closed } = await db()
-        .from("withdrawals")
-        .update({
-          status: "expired",
-          service_fee_status: "expired",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", row.id)
-        .eq("service_fee_status", "pending")
-        .select("id");
-      if (!closed?.length) continue;
-
-      await applyBalance(
-        row.user_id,
-        { balance: Number(row.amount), profit: Number(row.amount) },
-        { kind: "withdrawal_expired", amount: Number(row.amount), ref_id: row.id },
-      );
+      const closed = await db().refundWithdrawalAtomic({
+        withdrawalId: row.id,
+        expectedStatus: row.status,
+        expectedFeeStatus: "pending",
+        status: "expired",
+        feeStatus: "expired",
+        kind: "withdrawal_expired",
+      });
+      if (!closed) continue;
       const { data: user } = await db()
         .from("users")
         .select("telegram_id")
