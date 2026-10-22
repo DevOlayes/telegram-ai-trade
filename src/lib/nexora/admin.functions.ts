@@ -118,7 +118,7 @@ export const setWithdrawalStatus = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     await assertAdmin(context as never);
-    const { db, usd, applyBalance } = await import("@/lib/nexora/core.server");
+    const { db, usd } = await import("@/lib/nexora/core.server");
     const { editPhoto, sendPhoto } = await import("@/lib/nexora/telegram.server");
     const { IMG } = await import("@/lib/nexora/images.server");
     const { data: wd } = await db()
@@ -128,17 +128,24 @@ export const setWithdrawalStatus = createServerFn({ method: "POST" })
       .single();
     if (!wd || wd.status === data.status) return { ok: true };
 
-    await db()
-      .from("withdrawals")
-      .update({ status: data.status, updated_at: new Date().toISOString() })
-      .eq("id", data.id);
-
     if (data.status === "rejected") {
-      await applyBalance(
-        wd.user_id,
-        { balance: Number(wd.amount), profit: Number(wd.amount) },
-        { kind: "withdrawal_refund", amount: Number(wd.amount), ref_id: wd.id },
-      );
+      const refunded = await db().refundWithdrawalAtomic({
+        withdrawalId: data.id,
+        expectedStatus: "pending",
+        status: "rejected",
+        kind: "withdrawal_refund",
+      });
+      if (!refunded) throw new Error("Only pending withdrawals can be rejected.");
+    } else if (data.status === "paid") {
+      const { data: updated } = await db()
+        .from("withdrawals")
+        .update({ status: "paid", updated_at: new Date().toISOString() })
+        .eq("id", data.id)
+        .eq("status", "pending")
+        .select("id");
+      if (!updated?.length) throw new Error("Only pending withdrawals can be marked paid.");
+    } else {
+      throw new Error("A completed withdrawal cannot be reopened.");
     }
 
     const { data: user } = await db()
