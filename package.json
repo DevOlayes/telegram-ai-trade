@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "deploy": "bun run build && npx wrangler deploy",
-    "cf-typegen": "npx wrangler types"
+    "cf-typegen": "npx wrangler types",
+    "admin:hash": "bun run scripts/generate-admin-password-hash.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
