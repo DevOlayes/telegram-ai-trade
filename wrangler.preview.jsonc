@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "telegram-ai-trade-preview",
+  "main": "dist/server/index.mjs",
+  "compatibility_date": "2026-10-22",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": true,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "telegram-ai-trade",
+      "database_id": "6762afda-cd16-4f50-87f2-a3a8606047d9",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "SUPABASE_URL": "https://povzibvrbzaqokzmdfon.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_a2waNRebUzA36a79jTX1Sg_VPnt6b6Q",
+    "APP_URL": "https://telegram-ai-trade-preview.godwin2000vic.workers.dev",
+    "ASSET_HOST": "https://telegram-ai-trade-preview.godwin2000vic.workers.dev",
+    "TELEGRAM_BOT_USERNAME": "nexoraiaxbot"
+  }
+}
