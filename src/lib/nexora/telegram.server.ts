@@ -178,7 +178,13 @@ export async function ensureTelegramWebhook() {
     allowed_updates: ["message", "callback_query"],
   });
   if (result !== true) {
-    return { configured: false, reason: "Telegram rejected webhook setup" };
+    return {
+      configured: false,
+      reason: "Telegram rejected webhook setup",
+      currentUrl: info?.url ?? "",
+      pendingUpdates: info?.pending_update_count ?? 0,
+      lastError: info?.last_error_message ?? null,
+    };
   }
 
   await setCommands();
