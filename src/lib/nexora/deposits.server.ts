@@ -98,22 +98,27 @@ async function creditDeposit(dep: DepositRow, txHash: string, received: number) 
   if (!user) return true;
 
   const b = await getBalance(dep.user_id);
-  const text = `✅ DEPOSIT CONFIRMED
-
-Amount:
-${usd(received)} USDT
-
-Status:
-Credited to your balance
-
-💰 Available Balance:
-${usd(b.balance)}`;
-  const markup = kb([[{ text: "🚀 START TRADING", data: "trade" }], [{ text: "🏠 MENU", data: "home" }]]);
+  const text =
+    `✅ DEPOSIT CONFIRMED\n\n` +
+    `Amount:  +${usd(received)}\n` +
+    `Balance: ${usd(b.balance)}\n\n` +
+    `Tx: ${txHash.slice(0, 10)}…${txHash.slice(-6)}`;
+  const markup = kb([
+    [{ text: "🚀 TRADE", data: "trade" }],
+    [{ text: "🏠 MENU", data: "home" }],
+  ]);
   if (dep.message_id) {
-    const edited = await editPhoto(user.telegram_id, dep.message_id, IMG.depositSuccess(), text, markup);
-    if (edited) return true;
+    const ok = await editPhoto(
+      user.telegram_id,
+      dep.message_id,
+      IMG.depositSuccess(),
+      text,
+      markup,
+    );
+    if (!ok) await sendPhoto(user.telegram_id, IMG.depositSuccess(), text, markup);
+  } else {
+    await sendPhoto(user.telegram_id, IMG.depositSuccess(), text, markup);
   }
-  await sendPhoto(user.telegram_id, IMG.depositSuccess(), text, markup);
   return true;
 }
 
