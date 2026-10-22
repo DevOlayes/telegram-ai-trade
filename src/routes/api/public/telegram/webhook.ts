@@ -1,5 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createHash, timingSafeEqual } from "crypto";
+import { env } from "cloudflare:workers";
+import { createHash, timingSafeEqual } from "node:crypto";
+
+const workerEnv = env as unknown as { TELEGRAM_BOT_TOKEN?: string };
 
 function safeEqual(a: string, b: string) {
   const l = Buffer.from(a);
@@ -11,7 +14,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const token = process.env["TELEGRAM_BOT_TOKEN"];
+        const token = workerEnv.TELEGRAM_BOT_TOKEN;
         if (!token) return new Response("Not configured", { status: 500 });
         const expected = createHash("sha256")
           .update(`telegram-webhook:${token}`)
