@@ -53,7 +53,8 @@ export default {
     ctx.waitUntil((async () => {
       try {
         const { ensureTelegramWebhook } = await import("./lib/nexora/telegram.server");
-        await ensureTelegramWebhook();
+        const webhookStatus = await ensureTelegramWebhook();
+        console.log("Telegram webhook check", webhookStatus);
       } catch (error) {
         console.error("Telegram webhook registration check failed", error);
       }
