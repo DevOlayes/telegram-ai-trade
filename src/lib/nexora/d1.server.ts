@@ -256,8 +256,8 @@ export function d1Db() {
       const statements = [
         sqlDb.prepare("INSERT INTO balances (user_id) VALUES (?) ON CONFLICT(user_id) DO NOTHING").bind(userId),
         sqlDb.prepare(`UPDATE balances
-          SET balance = balance + ?, bonus = bonus + ?, profit = profit + ?,
-              referral_balance = referral_balance + ?, updated_at = ?
+          SET balance = ROUND(balance + ?, 2), bonus = ROUND(bonus + ?, 2), profit = ROUND(profit + ?, 2),
+              referral_balance = ROUND(referral_balance + ?, 2), updated_at = ?
           WHERE user_id = ?`).bind(
             Number(delta.balance ?? 0),
             Number(delta.bonus ?? 0),
