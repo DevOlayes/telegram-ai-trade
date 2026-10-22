@@ -14,7 +14,10 @@ type D1Statement = {
   first: <T = Record<string, unknown>>(columnName?: string) => Promise<T | null>;
   run: () => Promise<D1Result>;
 };
-type D1DatabaseLike = { prepare: (sql: string) => D1Statement };
+type D1DatabaseLike = {
+  prepare: (sql: string) => D1Statement;
+  batch: (statements: D1Statement[]) => Promise<D1Result[]>;
+};
 
 const ID_TABLES = new Set([
   "users", "user_roles", "user_milestones", "admin_actions", "trades", "transactions", "referrals", "referral_rewards", "milestones",
@@ -245,6 +248,44 @@ export function d1Db() {
   if (!sqlDb) throw new Error("Cloudflare D1 binding DB is unavailable. Check wrangler.jsonc and deploy environment.");
   return {
     from: (table: string) => new D1Query(sqlDb, table),
+    async applyBalanceAtomic(
+      userId: string,
+      delta: { balance?: number; bonus?: number; profit?: number; referral_balance?: number },
+      ledger: { kind: string; amount: number; ref_id?: string | null; note?: string | null },
+    ) {
+      const statements = [
+        sqlDb.prepare("INSERT INTO balances (user_id) VALUES (?) ON CONFLICT(user_id) DO NOTHING").bind(userId),
+        sqlDb.prepare(`UPDATE balances
+          SET balance = balance + ?, bonus = bonus + ?, profit = profit + ?,
+              referral_balance = referral_balance + ?, updated_at = ?
+          WHERE user_id = ?`).bind(
+            Number(delta.balance ?? 0),
+            Number(delta.bonus ?? 0),
+            Number(delta.profit ?? 0),
+            Number(delta.referral_balance ?? 0),
+            new Date().toISOString(),
+            userId,
+          ),
+        sqlDb.prepare(`INSERT INTO transactions
+          (user_id, kind, amount, balance_after, ref_id, note)
+          SELECT ?, ?, ?, balance, ?, ? FROM balances WHERE user_id = ?`).bind(
+            userId,
+            ledger.kind,
+            ledger.amount,
+            ledger.ref_id ?? null,
+            ledger.note ?? null,
+            userId,
+          ),
+      ];
+      const results = await sqlDb.batch(statements);
+      const failed = results.find((result) => result.success === false);
+      if (failed) throw new Error("Atomic balance update failed");
+      const row = await sqlDb.prepare(
+        "SELECT balance, bonus, profit, referral_balance, updated_at FROM balances WHERE user_id = ?",
+      ).bind(userId).first<Record<string, unknown>>();
+      if (!row) throw new Error("Balance row missing after atomic update");
+      return row;
+    },
     rpc: async (name: string, args: Record<string, unknown> = {}) => {
       try {
         if (name !== "expire_promotional_credit") throw new Error(`Unsupported D1 RPC: ${name}`);
