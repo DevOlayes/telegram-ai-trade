@@ -1,6 +1,5 @@
 // Telegram Bot API transport + clean-chat helpers (edit-in-place, delete temp).
 import { createHash } from "node:crypto";
-import { env } from "cloudflare:workers";
 import { db } from "./core.server";
 
 const API = () => `https://api.telegram.org/bot${process.env["TELEGRAM_BOT_TOKEN"]}`;
@@ -132,31 +131,51 @@ export async function setCommands() {
 export async function ensureTelegramWebhook() {
   const token = process.env["TELEGRAM_BOT_TOKEN"];
   const appUrl = process.env["APP_URL"];
-  if (!token || !appUrl?.startsWith("https://")) return { configured: false, reason: "missing configuration" };
-
-  const kv = (env as unknown as { MEDIA?: { get(key: string): Promise<string | null>; put(key: string, value: string): Promise<void> } }).MEDIA;
-  const fingerprint = createHash("sha256").update(token).digest("hex");
-  const marker = "telegram:webhook-token-fingerprint";
-  try {
-    if (await kv?.get(marker) === fingerprint) return { configured: true, changed: false };
-  } catch (error) {
-    console.error("Could not read Telegram webhook setup marker", error);
+  if (!token || !appUrl?.startsWith("https://")) {
+    return { configured: false, reason: "missing configuration" };
   }
 
-  const secretToken = createHash("sha256").update(`telegram-webhook:${token}`).digest("base64url");
+  const webhookUrl = `${appUrl.replace(/\/$/, "")}/api/public/telegram/webhook`;
+  const secretToken = createHash("sha256")
+    .update(`telegram-webhook:${token}`)
+    .digest("base64url");
+
+  // Check Telegram itself rather than trusting a local marker. The webhook
+  // can be removed or changed independently of this Worker.
+  const info = await call<{
+    url?: string;
+    pending_update_count?: number;
+    last_error_date?: number;
+    last_error_message?: string;
+  }>("getWebhookInfo", {});
+
+  if (info?.url === webhookUrl && !info.last_error_message) {
+    return {
+      configured: true,
+      changed: false,
+      pendingUpdates: info.pending_update_count ?? 0,
+    };
+  }
+
+  if (info?.last_error_message) {
+    console.error("Telegram reports a webhook delivery error", {
+      message: info.last_error_message,
+      date: info.last_error_date,
+      pendingUpdates: info.pending_update_count ?? 0,
+    });
+  }
+
   const result = await call<boolean>("setWebhook", {
-    url: `${appUrl.replace(/\/$/, "")}/api/public/telegram/webhook`,
+    url: webhookUrl,
     secret_token: secretToken,
     allowed_updates: ["message", "callback_query"],
   });
-  if (result !== true) return { configured: false, reason: "Telegram rejected webhook setup" };
-  await setCommands();
-  try {
-    await kv?.put(marker, fingerprint);
-  } catch (error) {
-    console.error("Could not save Telegram webhook setup marker", error);
+  if (result !== true) {
+    return { configured: false, reason: "Telegram rejected webhook setup" };
   }
-  return { configured: true, changed: true };
+
+  await setCommands();
+  return { configured: true, changed: true, url: webhookUrl };
 }
 
 export type ScreenOpts = { photo?: string; parseMode?: "HTML" };
