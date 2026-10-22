@@ -45,6 +45,27 @@ function isH3SwallowedErrorBody(body: string): boolean {
 }
 
 export default {
+  async scheduled(
+    controller: { scheduledTime: number; cron: string },
+    env: { ENABLE_SCHEDULED_TICK?: string },
+    ctx: { waitUntil: (promise: Promise<unknown>) => void },
+  ) {
+    if (env.ENABLE_SCHEDULED_TICK !== "true") return;
+    ctx.waitUntil((async () => {
+      try {
+        const { runTick } = await import("./lib/nexora/settlement.server");
+        const result = await runTick();
+        console.log("nexora scheduled tick completed", {
+          cron: controller.cron,
+          scheduledTime: controller.scheduledTime,
+          ...result,
+        });
+      } catch (error) {
+        console.error("nexora scheduled tick failed", error);
+        throw error;
+      }
+    })());
+  },
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
       const handler = await getServerEntry();
