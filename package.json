@@ -7,9 +7,11 @@
     "dev": "vite dev",
     "build": "vite build",
     "build:dev": "vite build --mode development",
-    "preview": "vite preview",
+    "preview": "bun run build && npx wrangler dev",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "deploy": "bun run build && npx wrangler deploy",
+    "cf-typegen": "npx wrangler types"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
