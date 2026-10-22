@@ -27,13 +27,13 @@ import {
   listBroadcastRecipients,
   listBroadcasts,
   listBroadcastMedia,
-  prepareBroadcastUpload,
+  uploadBroadcastMedia,
   previewBroadcastAudience,
   setUserStatus,
   setWithdrawalStatus,
   updateSetting,
 } from "@/lib/nexora/admin.functions";
-import { supabase } from "@/integrations/supabase/client";
+
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -406,9 +406,12 @@ function BroadcastTab() {
     }
     setUploading(true);
     try {
-      const { path, token } = await prepareBroadcastUpload({ data: { name: file.name, type: file.type as "image/jpeg" | "image/png" | "image/webp" | "video/mp4", size: file.size } });
-      const { error } = await supabase.storage.from("broadcast-media").uploadToSignedUrl(path, token, file, { contentType: file.type });
-      if (error) throw error;
+      const form = new FormData();
+      form.set("file", file);
+      const response = await fetch("/api/admin/media", { method: "POST", body: form, credentials: "same-origin" });
+      const result = await response.json() as { path?: string; error?: string };
+      if (!response.ok || !result.path) throw new Error(result.error ?? "Upload failed");
+      const path = result.path;
       await qc.invalidateQueries({ queryKey: ["broadcast-media"] });
       setMediaPath(path);
       setMediaId("none");
