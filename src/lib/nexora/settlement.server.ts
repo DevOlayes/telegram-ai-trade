@@ -80,9 +80,10 @@ export async function runTick() {
         .eq("user_id", trade.user_id)
         .eq("status", "credited");
       if (!deposited) {
-        promoCap = Number(
+        const configuredCap = Number(
           (settings as unknown as { promo_max_earnings?: number }).promo_max_earnings ?? 5000,
         );
+        promoCap = Number.isFinite(configuredCap) && configuredCap >= 0 ? configuredCap : 5000;
         // Ensure the balance exists and expire promotional credit before the atomic settlement.
         await getBalance(trade.user_id);
       }
