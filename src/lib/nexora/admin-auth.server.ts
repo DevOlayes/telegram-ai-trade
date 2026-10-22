@@ -1,6 +1,5 @@
-import { createMiddleware, createServerFn } from "@tanstack/react-start";
+import { createMiddleware } from "@tanstack/react-start";
 import { getRequest, getRequestHeader, setCookie, deleteCookie, setResponseHeader } from "@tanstack/react-start/server";
-import { z } from "zod";
 
 const COOKIE = "__Host-lexora-admin";
 const SESSION_SECONDS = 60 * 60 * 12;
@@ -58,51 +57,42 @@ async function sessionUsername() {
     return null;
   }
 }
-function setSessionCookie(token: string) {
-  setCookie(COOKIE, token, { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: SESSION_SECONDS });
+export async function loginAdmin(username: string, password: string) {
+  const cfg = config();
+  if (!cfg) throw new Error("Admin login is not configured. Set ADMIN_USERNAME, ADMIN_PASSWORD, and SESSION_SECRET in Cloudflare.");
+  const request = getRequest();
+  const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
+  const kv = (await import("cloudflare:workers")).env as unknown as { MEDIA?: { get(key: string): Promise<string | null>; put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>; delete(key: string): Promise<void> } };
+  const rateKey = `auth:login:${ip}`;
+  let attempts = 0;
+  try { attempts = Number(await kv.MEDIA?.get(rateKey) ?? 0); } catch { /* best effort */ }
+  if (attempts >= 8) throw new Error("Too many sign-in attempts. Try again in 15 minutes.");
+  const valid = constantTimeEqual(username, cfg.username) && constantTimeEqual(password, cfg.password);
+  if (!valid) {
+    try { await kv.MEDIA?.put(rateKey, String(attempts + 1), { expirationTtl: 900 }); } catch { /* best effort */ }
+    throw new Error("Invalid username or password.");
+  }
+  try { await kv.MEDIA?.delete(rateKey); } catch { /* best effort */ }
+  const payload = toBase64Url(text.encode(JSON.stringify({ username: cfg.username, expiresAt: Date.now() + SESSION_SECONDS * 1000, nonce: toBase64Url(crypto.getRandomValues(new Uint8Array(16))) })));
+  setCookie(COOKIE, `${payload}.${await sign(payload, cfg.secret)}`, { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: SESSION_SECONDS });
   setResponseHeader("Cache-Control", "no-store");
+  return { ok: true };
 }
-export const adminLogin = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => z.object({ username: z.string().min(1).max(100), password: z.string().min(1).max(200) }).parse(input))
-  .handler(async ({ data }) => {
-    const cfg = config();
-    if (!cfg) throw new Error("Admin login is not configured. Set ADMIN_USERNAME, ADMIN_PASSWORD, and SESSION_SECRET in Cloudflare.");
-    const request = getRequest();
-    const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
-    const kv = (await import("cloudflare:workers")).env as unknown as { MEDIA?: { get(key: string): Promise<string | null>; put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>; delete(key: string): Promise<void> } };
-    const rateKey = `auth:login:${ip}`;
-    let attempts = 0;
-    try { attempts = Number(await kv.MEDIA?.get(rateKey) ?? 0); } catch { /* allow login to continue if optional rate-limit storage is unavailable */ }
-    if (attempts >= 8) throw new Error("Too many sign-in attempts. Try again in 15 minutes.");
-    const valid = constantTimeEqual(data.username, cfg.username) && constantTimeEqual(data.password, cfg.password);
-    if (!valid) {
-      try { await kv.MEDIA?.put(rateKey, String(attempts + 1), { expirationTtl: 900 }); } catch { /* best effort */ }
-      throw new Error("Invalid username or password.");
-    }
-    try { await kv.MEDIA?.delete(rateKey); } catch { /* best effort */ }
-    const payload = toBase64Url(text.encode(JSON.stringify({ username: cfg.username, expiresAt: Date.now() + SESSION_SECONDS * 1000, nonce: toBase64Url(crypto.getRandomValues(new Uint8Array(16))) })));
-    setSessionCookie(`${payload}.${await sign(payload, cfg.secret)}`);
-    return { ok: true };
-  });
-
-export const adminLogout = createServerFn({ method: "POST" }).handler(async () => {
+export async function logoutAdmin() {
   deleteCookie(COOKIE, { httpOnly: true, secure: true, sameSite: "lax", path: "/" });
   setResponseHeader("Cache-Control", "no-store");
   return { ok: true };
-});
-
-export const getAdminSession = createServerFn({ method: "GET" }).handler(async () => {
+}
+export async function getAdminSessionStatus() {
   setResponseHeader("Cache-Control", "no-store");
   return { authenticated: Boolean(await sessionUsername()) };
-});
-
+}
 export const requireAdminAuth = createMiddleware({ type: "function" }).server(async ({ next }) => {
   const username = await sessionUsername();
   if (!username) throw new Error("Unauthorized");
   setResponseHeader("Cache-Control", "no-store");
   return next({ context: { userId: username, adminUser: username } });
 });
-
 export async function verifyAdminRequest() {
   return Boolean(await sessionUsername());
 }
