@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { adminLogin } from "@/lib/nexora/admin-auth.server";
+import { adminLogin } from "@/lib/nexora/admin.functions";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
