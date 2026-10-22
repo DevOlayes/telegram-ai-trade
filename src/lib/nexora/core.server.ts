@@ -158,32 +158,22 @@ export async function getBalance(userId: string): Promise<Balance> {
   return created.data as Balance;
 }
 
-/** Atomic-ish balance mutation with a transaction ledger row. */
+/** Apply a balance change and write its ledger row in one D1 transaction. */
 export async function applyBalance(
   userId: string,
   delta: { balance?: number; bonus?: number; profit?: number; referral_balance?: number },
   ledger: { kind: string; amount: number; ref_id?: string; note?: string },
 ) {
-  const b = await getBalance(userId);
-  const next = {
-    balance: fromCents(toCents(b.balance) + toCents(delta.balance ?? 0)),
-    bonus: fromCents(toCents(b.bonus) + toCents(delta.bonus ?? 0)),
-    profit: fromCents(toCents(b.profit) + toCents(delta.profit ?? 0)),
-    referral_balance: fromCents(
-      toCents(b.referral_balance) + toCents(delta.referral_balance ?? 0),
-    ),
-    updated_at: new Date().toISOString(),
+  // Preserve promotional-credit expiry behavior before mutating the balance.
+  await getBalance(userId);
+  const next = await db().applyBalanceAtomic(userId, delta, ledger);
+  return {
+    balance: fromCents(toCents(next.balance as number)),
+    bonus: fromCents(toCents(next.bonus as number)),
+    profit: fromCents(toCents(next.profit as number)),
+    referral_balance: fromCents(toCents(next.referral_balance as number)),
+    updated_at: String(next.updated_at),
   };
-  await db().from("balances").update(next).eq("user_id", userId);
-  await db().from("transactions").insert({
-    user_id: userId,
-    kind: ledger.kind,
-    amount: ledger.amount,
-    balance_after: next.balance,
-    ref_id: ledger.ref_id ?? null,
-    note: ledger.note ?? null,
-  });
-  return next;
 }
 
 export async function setUiState(userId: string, state: Record<string, unknown>) {
