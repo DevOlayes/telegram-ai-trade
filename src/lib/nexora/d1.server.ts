@@ -100,7 +100,7 @@ class D1Query implements PromiseLike<{ data: any; error: any; count?: number }> 
     this.action = "insert";
     this.values = (Array.isArray(input) ? input : [input]).map((item) => {
       const row = { ...item };
-      if (ID_TABLES.has(this.table) && !row.id) row.id = crypto.randomUUID();
+      if (ID_TABLES.has(this.table) && !row["id"]) row["id"] = crypto.randomUUID();
       return row;
     });
     this.conflictColumns = (options?.onConflict ?? DEFAULT_CONFLICT_COLUMNS[this.table]?.join(",") ?? "").split(",").map((v) => v.trim()).filter(Boolean);
