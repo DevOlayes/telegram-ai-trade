@@ -1223,9 +1223,10 @@ export async function handleUpdate(update: TgUpdate) {
   ]);
   if (u.status === "blocked") return;
 
-  // Keep the chat clean: the user's command/input is transient.
-  await deleteMessage(m.chat.id, m.message_id);
-
+  // Start removing the transient input while the bot prepares the next screen.
+  // Await both before acknowledging the webhook, without serializing the two calls.
+  const deleteInput = deleteMessage(m.chat.id, m.message_id);
+  const processInput = async () => {
   const st = u.ui_state as { flow?: string; amount?: number };
 
   if (!isCommand && st.flow === "custom_amount") {
@@ -1279,6 +1280,8 @@ export async function handleUpdate(update: TgUpdate) {
     return;
   }
   await route(u, s, COMMANDS[text.split(" ")[0] ?? ""] ?? "home");
+  };
+  await Promise.all([deleteInput, processInput()]);
 }
 
 export { qualifyReferral };
