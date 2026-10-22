@@ -249,6 +249,41 @@ export function d1Db() {
   if (!sqlDb) throw new Error("Cloudflare D1 binding DB is unavailable. Check wrangler.jsonc and deploy environment.");
   return {
     from: (table: string) => new D1Query(sqlDb, table),
+    async creditDepositAtomic(input: { depositId: string; txHash: string; amount: number }) {
+      const creditedAt = new Date().toISOString();
+      const updatedAt = new Date().toISOString();
+      try {
+        const statements = [
+          sqlDb.prepare(`UPDATE deposits
+            SET status = 'credited', tx_hash = ?, amount = ?, credited_at = ?, updated_at = ?
+            WHERE id = ? AND status = 'pending'`).bind(
+              input.txHash, input.amount, creditedAt, updatedAt, input.depositId,
+            ),
+          sqlDb.prepare(`INSERT INTO balances (user_id)
+            SELECT user_id FROM deposits WHERE id = ? AND status = 'credited' AND credited_at = ?
+            ON CONFLICT(user_id) DO NOTHING`).bind(input.depositId, creditedAt),
+          sqlDb.prepare(`UPDATE balances
+            SET balance = ROUND(balance + (SELECT amount FROM deposits WHERE id = ? AND credited_at = ?), 2),
+                updated_at = ?
+            WHERE user_id = (SELECT user_id FROM deposits WHERE id = ? AND status = 'credited' AND credited_at = ?)`).bind(
+              input.depositId, creditedAt, updatedAt, input.depositId, creditedAt,
+            ),
+          sqlDb.prepare(`INSERT INTO transactions (user_id, kind, amount, balance_after, ref_id, note)
+            SELECT d.user_id, 'deposit', d.amount, b.balance, d.id, d.tx_hash
+            FROM deposits d JOIN balances b ON b.user_id = d.user_id
+            WHERE d.id = ? AND d.status = 'credited' AND d.credited_at = ?`).bind(input.depositId, creditedAt),
+        ];
+        const results = await sqlDb.batch(statements);
+        if (results.some((result) => result.success === false)) throw new Error("Atomic deposit credit failed");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (/UNIQUE constraint failed: deposits\.tx_hash/i.test(message)) return null;
+        throw error;
+      }
+      return sqlDb.prepare(
+        "SELECT id, user_id, amount, tx_hash, credited_at FROM deposits WHERE id = ? AND status = 'credited' AND credited_at = ?",
+      ).bind(input.depositId, creditedAt).first<Record<string, unknown>>();
+    },
     async settleTradeAtomic(input: {
       tradeId: string;
       result: string;
