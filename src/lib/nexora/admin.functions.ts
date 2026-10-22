@@ -123,7 +123,7 @@ export const setWithdrawalStatus = createServerFn({ method: "POST" })
     const { IMG } = await import("@/lib/nexora/images.server");
     const { data: wd } = await db()
       .from("withdrawals")
-      .select("id,user_id,amount,status,message_id,wallet_address")
+      .select("id,user_id,amount,status,message_id,wallet_address,service_fee_status")
       .eq("id", data.id)
       .single();
     if (!wd || wd.status === data.status) return { ok: true };
@@ -133,6 +133,7 @@ export const setWithdrawalStatus = createServerFn({ method: "POST" })
         withdrawalId: data.id,
         expectedStatus: "pending",
         status: "rejected",
+        ...(wd.service_fee_status === "pending" ? { feeStatus: "expired" } : {}),
         kind: "withdrawal_refund",
       });
       if (!refunded) throw new Error("Only pending withdrawals can be rejected.");
