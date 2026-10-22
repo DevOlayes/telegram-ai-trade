@@ -1,5 +1,5 @@
 // Settlement runner: advances open positions and settles them.
-import { applyBalance, db, getBalance, getSettings, track, usd } from "./core.server";
+import { db, getBalance, getSettings, track, usd } from "./core.server";
 import { tickTrade, type TradeRow } from "./engine.server";
 import { activeTradeText } from "./bot.server";
 import { qualifyReferral } from "./referrals.server";
@@ -46,27 +46,8 @@ export async function runTick() {
       continue;
     }
 
-    // Atomic settle: only the first worker to flip status="active" credits.
-    const { data: claimed } = await db()
-      .from("trades")
-      .update({
-        status: "settled",
-        result: res.result,
-        pnl: res.pnl,
-        current_price: res.price,
-        settled_at: new Date().toISOString(),
-      })
-      .eq("id", trade.id)
-      .eq("status", "active")
-      .select("id");
-    if (!claimed?.length) continue;
-
-    settled++;
     const win = res.result === "win";
-
-    // Server-side bound on promotional compounding: accounts that never
-    // deposited cannot accumulate profit past the configured allowance.
-    let pnl = res.pnl;
+    let promoCap: number | null = null;
     if (win) {
       const { count: deposited } = await db()
         .from("deposits")
@@ -74,30 +55,32 @@ export async function runTick() {
         .eq("user_id", trade.user_id)
         .eq("status", "credited");
       if (!deposited) {
-        const cap = Number(
+        promoCap = Number(
           (settings as unknown as { promo_max_earnings?: number }).promo_max_earnings ?? 5000,
         );
-        const cur = await getBalance(trade.user_id);
-        const room = Math.max(0, cap - Number(cur.profit));
-        if (pnl > room) {
-          pnl = Number(room.toFixed(2));
-          await db()
-            .from("users")
-            .update({ flagged_reason: "promo_cap_reached" })
-            .eq("id", trade.user_id);
-        }
+        // Ensure the balance exists and expire promotional credit before the atomic settlement.
+        await getBalance(trade.user_id);
       }
     }
-    if (pnl !== res.pnl) {
-      await db().from("trades").update({ pnl }).eq("id", trade.id);
-    }
 
-    const credit = Number(trade.amount) + pnl;
-    await applyBalance(
-      trade.user_id,
-      { balance: credit, profit: pnl },
-      { kind: win ? "trade_win" : "trade_loss", amount: pnl, ref_id: trade.id },
-    );
+    // Claim the trade, apply the balance change, and write its ledger entry in one D1 transaction.
+    const settledTrade = await db().settleTradeAtomic({
+      tradeId: trade.id,
+      result: res.result,
+      pnl: res.pnl,
+      currentPrice: res.price,
+      promoCap,
+      kind: win ? "trade_win" : "trade_loss",
+    });
+    if (!settledTrade) continue;
+    settled++;
+    const pnl = Number(settledTrade["pnl"] ?? 0);
+    if (promoCap !== null && pnl < res.pnl) {
+      await db()
+        .from("users")
+        .update({ flagged_reason: "promo_cap_reached" })
+        .eq("id", trade.user_id);
+    }
 
     await track(trade.user_id, "trade_settled", {
       symbol: trade.symbol,
