@@ -45,3 +45,11 @@ jobs:
       - name: Lint application
         run: >-
           bunx eslint . --rule 'prettier/prettier: off' --rule '@typescript-eslint/no-explicit-any: off'
+      - name: Smoke test preview security routes
+        run: |
+          base="https://telegram-ai-trade-preview-telegram-ai-trade.godwin2000vic.workers.dev"
+          curl -fsS --retry 30 --retry-delay 2 --retry-all-errors "$base/auth" >/dev/null
+          upload_status="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$base/api/admin/media")"
+          test "$upload_status" = "401"
+          media_status="$(curl -sS -o /dev/null -w '%{http_code}' "$base/api/public/media")"
+          test "$media_status" = "404"
