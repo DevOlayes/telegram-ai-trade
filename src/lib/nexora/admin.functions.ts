@@ -255,6 +255,7 @@ export const listBroadcastMedia = createServerFn({ method: "GET" })
     const items: { path: string; name: string; type: "photo" | "video"; previewUrl: string }[] = [];
     for (const kind of ["image", "video"] as const) {
       const files = await listBroadcastMediaKeys(`admin/${kind}/`);
+      files.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
       for (const file of files) {
         if (!mediaPathSchema.safeParse(file.path).success) continue;
         items.push({
