@@ -1,7 +1,7 @@
 // Automatic USDT (TRC-20) deposits: intent creation + on-chain matching.
 // One shared collection wallet; each pending deposit carries a unique cents
 // tag so an incoming transfer can be attributed to exactly one user.
-import { applyBalance, db, getBalance, getSettings, track, usd } from "./core.server";
+import { db, getBalance, getSettings, track, usd } from "./core.server";
 import { editMessage, editPhoto, kb, sendPhoto } from "./telegram.server";
 import { IMG } from "./images.server";
 import { recentTransfers, transferAmount } from "./tron.server";
@@ -80,26 +80,14 @@ export async function cancelDeposit(userId: string, id: string) {
 }
 
 async function creditDeposit(dep: DepositRow, txHash: string, received: number) {
-  // Idempotency: the unique tx_hash column makes a double credit impossible.
-  const { data: updated, error } = await db()
-    .from("deposits")
-    .update({
-      status: "credited",
-      tx_hash: txHash,
-      amount: received,
-      credited_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", dep.id)
-    .eq("status", "pending")
-    .select("id");
-  if (error || !updated?.length) return false;
+  // Credit the intent, balance, and transaction ledger in one D1 transaction.
+  const credited = await db().creditDepositAtomic({
+    depositId: dep.id,
+    txHash,
+    amount: received,
+  });
+  if (!credited) return false;
 
-  await applyBalance(
-    dep.user_id,
-    { balance: received },
-    { kind: "deposit", amount: received, ref_id: dep.id, note: txHash },
-  );
   await track(dep.user_id, "deposit_credited", { amount: received, tx: txHash });
 
   const { data: user } = await db()
@@ -110,27 +98,22 @@ async function creditDeposit(dep: DepositRow, txHash: string, received: number) 
   if (!user) return true;
 
   const b = await getBalance(dep.user_id);
-  const text =
-    `✅ DEPOSIT CONFIRMED\n\n` +
-    `Amount:  +${usd(received)}\n` +
-    `Balance: ${usd(b.balance)}\n\n` +
-    `Tx: ${txHash.slice(0, 10)}…${txHash.slice(-6)}`;
-  const markup = kb([
-    [{ text: "🚀 TRADE", data: "trade" }],
-    [{ text: "🏠 MENU", data: "home" }],
-  ]);
+  const text = `✅ DEPOSIT CONFIRMED
+
+Amount:
+${usd(received)} USDT
+
+Status:
+Credited to your balance
+
+💰 Available Balance:
+${usd(b.balance)}`;
+  const markup = kb([[{ text: "🚀 START TRADING", data: "trade" }], [{ text: "🏠 MENU", data: "home" }]]);
   if (dep.message_id) {
-    const ok = await editPhoto(
-      user.telegram_id,
-      dep.message_id,
-      IMG.depositSuccess(),
-      text,
-      markup,
-    );
-    if (!ok) await sendPhoto(user.telegram_id, IMG.depositSuccess(), text, markup);
-  } else {
-    await sendPhoto(user.telegram_id, IMG.depositSuccess(), text, markup);
+    const edited = await editPhoto(user.telegram_id, dep.message_id, IMG.depositSuccess(), text, markup);
+    if (edited) return true;
   }
+  await sendPhoto(user.telegram_id, IMG.depositSuccess(), text, markup);
   return true;
 }
 
