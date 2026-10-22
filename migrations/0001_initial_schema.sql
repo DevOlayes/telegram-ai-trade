@@ -30,14 +30,15 @@ CREATE TABLE IF NOT EXISTS users (
   ui_state TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   last_seen_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-  FOREIGN KEY (referred_by) REFERENCES users(id)
+  FOREIGN KEY (referred_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS user_roles (
   id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   user_id TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('admin', 'user')),
-  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  UNIQUE (user_id, role)
 );
 
 CREATE TABLE IF NOT EXISTS balances (
@@ -48,7 +49,7 @@ CREATE TABLE IF NOT EXISTS balances (
   profit REAL NOT NULL DEFAULT 0,
   referral_balance REAL NOT NULL DEFAULT 0,
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-  FOREIGN KEY (user_id) REFERENCES users(id)
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS transactions (
@@ -69,7 +70,7 @@ CREATE TABLE IF NOT EXISTS trades (
   symbol TEXT NOT NULL,
   direction TEXT NOT NULL,
   amount REAL NOT NULL,
-  confidence REAL NOT NULL DEFAULT 0,
+  confidence INTEGER NOT NULL DEFAULT 80,
   entry_price REAL NOT NULL,
   current_price REAL NOT NULL,
   take_profit REAL NOT NULL,
@@ -95,7 +96,7 @@ CREATE TABLE IF NOT EXISTS trading_pairs (
   id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   symbol TEXT NOT NULL UNIQUE,
   base_price REAL NOT NULL,
-  volatility REAL NOT NULL DEFAULT 0,
+  volatility REAL NOT NULL DEFAULT 0.004,
   active INTEGER NOT NULL DEFAULT 1
 );
 
@@ -121,8 +122,8 @@ CREATE TABLE IF NOT EXISTS withdrawals (
   wallet_address TEXT NOT NULL,
   network TEXT NOT NULL DEFAULT 'TRC20',
   status TEXT NOT NULL DEFAULT 'pending',
-  service_fee_amount REAL NOT NULL DEFAULT 4,
-  service_fee_status TEXT NOT NULL DEFAULT 'pending',
+  service_fee_amount REAL NOT NULL DEFAULT 0,
+  service_fee_status TEXT NOT NULL DEFAULT 'not_required',
   service_fee_tx TEXT UNIQUE,
   fee_requested_at TEXT,
   admin_note TEXT,
@@ -140,8 +141,8 @@ CREATE TABLE IF NOT EXISTS referrals (
   reward_amount REAL NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   qualified_at TEXT,
-  FOREIGN KEY (referrer_id) REFERENCES users(id),
-  FOREIGN KEY (referred_id) REFERENCES users(id)
+  FOREIGN KEY (referrer_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (referred_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS referral_rewards (
@@ -152,13 +153,13 @@ CREATE TABLE IF NOT EXISTS referral_rewards (
   amount REAL NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending',
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-  FOREIGN KEY (user_id) REFERENCES users(id),
-  FOREIGN KEY (referral_id) REFERENCES referrals(id)
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (referral_id) REFERENCES referrals(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS milestones (
   id TEXT PRIMARY KEY,
-  active_referrals INTEGER NOT NULL,
+  active_referrals INTEGER NOT NULL UNIQUE,
   reward_amount REAL NOT NULL,
   active INTEGER NOT NULL DEFAULT 1
 );
@@ -169,8 +170,9 @@ CREATE TABLE IF NOT EXISTS user_milestones (
   milestone_id TEXT NOT NULL,
   reached_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   UNIQUE(user_id, milestone_id),
-  FOREIGN KEY (user_id) REFERENCES users(id),
-  FOREIGN KEY (milestone_id) REFERENCES milestones(id)
+  UNIQUE (user_id, milestone_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (milestone_id) REFERENCES milestones(id) ON DELETE CASCADE ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS system_settings (
@@ -215,8 +217,9 @@ CREATE TABLE IF NOT EXISTS broadcast_recipients (
   status TEXT NOT NULL DEFAULT 'pending',
   error TEXT,
   sent_at TEXT,
-  FOREIGN KEY (broadcast_id) REFERENCES broadcasts(id),
-  FOREIGN KEY (user_id) REFERENCES users(id)
+  UNIQUE (broadcast_id, user_id),
+  FOREIGN KEY (broadcast_id) REFERENCES broadcasts(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS events (
@@ -229,6 +232,16 @@ CREATE TABLE IF NOT EXISTS events (
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_referred_by ON users(referred_by);
+CREATE INDEX IF NOT EXISTS idx_trades_user ON trades(user_id);
+CREATE INDEX IF NOT EXISTS idx_trades_status ON trades(status);
+CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions(user_id);
+CREATE INDEX IF NOT EXISTS idx_events_name ON events(name);
+CREATE INDEX IF NOT EXISTS idx_deposits_status ON deposits(status);
+CREATE INDEX IF NOT EXISTS idx_deposits_user ON deposits(user_id);
+CREATE INDEX IF NOT EXISTS idx_withdrawals_user_fee_status ON withdrawals(user_id, service_fee_status);
+CREATE INDEX IF NOT EXISTS idx_withdrawals_service_fee_tx ON withdrawals(service_fee_tx) WHERE service_fee_tx IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_trades_user_status ON trades(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_broadcast_recipients_pending ON broadcast_recipients(broadcast_id) WHERE status = 'pending';
 CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
 CREATE INDEX IF NOT EXISTS idx_trades_user_created ON trades(user_id, opened_at DESC);
 CREATE INDEX IF NOT EXISTS idx_trades_status_expires ON trades(status, expires_at);
@@ -241,3 +254,38 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referrer_status ON referrals(referrer_i
 CREATE INDEX IF NOT EXISTS idx_referral_rewards_user_created ON referral_rewards(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_events_user_created ON events(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_broadcast_recipients_broadcast_status ON broadcast_recipients(broadcast_id, status);
+
+
+-- Seed the same defaults and demo market pairs as the source migrations.
+INSERT OR IGNORE INTO system_settings(key, value) VALUES
+ ('welcome_bonus','25'),
+ ('min_withdrawal','30'),
+ ('withdrawal_wait_hours','72'),
+ ('referral_reward','2'),
+ ('durations','[30,45,60,120,180,240]'),
+ ('risk_profiles','{"conservative":0.10,"balanced":0.25,"aggressive":0.45}'),
+ ('win_rate','0.85'),
+ ('expiry_rule','"market"'),
+ ('show_confidence','true'),
+ ('qualify_trades','1'),
+ ('payout_day','31'),
+ ('service_fee','4'),
+ ('fee_window_minutes','120'),
+ ('fee_wallet','""'),
+ ('deposit_window_minutes','180'),
+ ('usdt_contract','"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"'),
+ ('starter_wins','3'),
+ ('no_double_loss','true');
+
+INSERT OR IGNORE INTO trading_pairs(symbol, base_price, volatility) VALUES
+ ('BTC/USDT', 118420, 0.004),
+ ('ETH/USDT', 3850, 0.006),
+ ('SOL/USDT', 178.5, 0.008),
+ ('XRP/USDT', 2.35, 0.007),
+ ('BNB/USDT', 690, 0.005);
+
+INSERT OR IGNORE INTO milestones(id, active_referrals, reward_amount) VALUES
+ ('milestone-1', 1, 2),
+ ('milestone-5', 5, 10),
+ ('milestone-10', 10, 25),
+ ('milestone-25', 25, 75);
