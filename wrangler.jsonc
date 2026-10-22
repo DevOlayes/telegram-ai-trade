@@ -7,6 +7,14 @@
     "nodejs_compat"
   ],
   "workers_dev": true,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "telegram-ai-trade",
+      "database_id": "6762afda-cd16-4f50-87f2-a3a8606047d9",
+      "migrations_dir": "migrations"
+    }
+  ],
   "assets": {
     "directory": "./dist/client",
     "binding": "ASSETS"
