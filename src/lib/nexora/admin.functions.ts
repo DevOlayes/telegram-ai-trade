@@ -203,63 +203,33 @@ export const sendWithdrawalRecovery = createServerFn({ method: "POST" })
     return { ok };
   });
 
-const mediaPathSchema = z.string().regex(/^[a-f0-9-]{36}\/(image|video)\/[a-f0-9-]{36}\.(jpg|jpeg|png|webp|mp4)$/);
-
-const broadcastButtonSchema = z.object({
-  text: z.string().trim().min(1).max(64),
-  action: z.string().optional(),
-  url: z.string().url().optional(),
-}).refine((b) => Boolean(b.action || b.url), "Button needs an action or URL");
+const mediaPathSchema = z.string().regex(/^admin\/(image|video)\/[a-f0-9-]{36}\.(jpg|jpeg|png|webp|mp4)$/);
 
 const broadcastInputSchema = z.object({
-  title: z.string().max(120).optional(),
-  body: z.string().trim().min(1).max(4000),
-  mediaId: z.string().optional(),
+  title: z.string().max(200).optional(),
+  body: z.string().min(1).max(4000),
+  mediaId: z.string().default("none"),
   mediaPath: mediaPathSchema.optional(),
-  audience: z.enum(["all", "abandoned_withdrawals", "has_profit", "never_traded", "inactive"]),
+  audience: z.enum(["all", "active", "inactive", "depositors", "withdrawers", "abandoned_withdrawals"]),
   days: z.number().int().min(1).max(365).optional(),
-  buttons: z.array(broadcastButtonSchema).max(2),
+  buttons: z.array(z.object({ text: z.string().min(1).max(64), action: z.string().min(1).max(100) })).max(3).default([]),
 });
-
-export const previewBroadcastAudience = createServerFn({ method: "POST" })
-  .middleware([requireAdminAuth])
-  .inputValidator((i: unknown) => z.object({ audience: broadcastInputSchema.shape.audience, days: z.number().int().min(1).max(365).optional() }).parse(i))
-  .handler(async ({ context, data }) => {
-    await assertAdmin(context as never);
-    const { resolveAudience } = await import("@/lib/nexora/broadcast.server");
-    return { count: (await resolveAudience(data.audience, data.days ? { days: data.days } : {})).length };
-  });
-
-export const prepareBroadcastUpload = createServerFn({ method: "POST" })
-  .middleware([requireAdminAuth])
-  .inputValidator((i: unknown) => z.object({ name: z.string().min(1).max(200), type: z.enum(["image/jpeg", "image/png", "image/webp", "video/mp4"]), size: z.number().int().positive().max(20 * 1024 * 1024) }).parse(i))
-  .handler(async ({ context, data }) => {
-    await assertAdmin(context as never);
-    const extension = data.name.split(".").pop()?.toLowerCase();
-    const extensions: Record<string, string[]> = { "image/jpeg": ["jpg", "jpeg"], "image/png": ["png"], "image/webp": ["webp"], "video/mp4": ["mp4"] };
-    if (!extension || !extensions[data.type]?.includes(extension)) throw new Error("File type and extension must match");
-    const { db } = await import("@/lib/nexora/core.server");
-    const path = `${context.userId}/${data.type.startsWith("video/") ? "video" : "image"}/${crypto.randomUUID()}.${extension}`;
-    const { data: signed, error } = await db().storage.from("broadcast-media").createSignedUploadUrl(path);
-    if (error || !signed) throw new Error(error?.message ?? "Could not prepare upload");
-    return { path, token: signed.token };
-  });
 
 export const listBroadcastMedia = createServerFn({ method: "GET" })
   .middleware([requireAdminAuth])
-  .handler(async ({ context }) => {
-    await assertAdmin(context as never);
-    const { db } = await import("@/lib/nexora/core.server");
-    const bucket = db().storage.from("broadcast-media");
+  .handler(async () => {
+    const { listBroadcastMediaKeys, signedBroadcastMediaUrl } = await import("@/lib/nexora/media.server");
     const items: { path: string; name: string; type: "photo" | "video"; previewUrl: string }[] = [];
-    for (const type of ["image", "video"] as const) {
-      const { data: files, error } = await bucket.list(`${context.userId}/${type}`, { limit: 100, sortBy: { column: "created_at", order: "desc" } });
-      if (error) throw new Error(error.message);
-      for (const file of files ?? []) {
-        const path = `${context.userId}/${type}/${file.name}`;
-        if (!mediaPathSchema.safeParse(path).success) continue;
-        const { data: signed } = await bucket.createSignedUrl(path, 3600);
-        if (signed) items.push({ path, name: file.name, type: type === "video" ? "video" : "photo", previewUrl: signed.signedUrl });
+    for (const kind of ["image", "video"] as const) {
+      const files = await listBroadcastMediaKeys(`admin/${kind}/`);
+      for (const file of files) {
+        if (!mediaPathSchema.safeParse(file.path).success) continue;
+        items.push({
+          path: file.path,
+          name: file.name,
+          type: kind === "video" ? "video" : "photo",
+          previewUrl: await signedBroadcastMediaUrl(file.path, 3600),
+        });
       }
     }
     return items;
@@ -271,12 +241,9 @@ export const createBroadcast = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     await assertAdmin(context as never);
     if (data.mediaPath) {
-      if (!data.mediaPath.startsWith(`${context.userId}/`)) throw new Error("Media is not yours");
-      const { db } = await import("@/lib/nexora/core.server");
-      const folder = data.mediaPath.slice(0, data.mediaPath.lastIndexOf("/"));
-      const name = data.mediaPath.slice(data.mediaPath.lastIndexOf("/") + 1);
-      const { data: files, error } = await db().storage.from("broadcast-media").list(folder, { search: name });
-      if (error || !files?.some((file) => file.name === name)) throw new Error("Uploaded media not found");
+      if (!data.mediaPath.startsWith("admin/")) throw new Error("Media is not yours");
+      const { hasBroadcastMedia } = await import("@/lib/nexora/media.server");
+      if (!(await hasBroadcastMedia(data.mediaPath))) throw new Error("Uploaded media not found");
     }
     const { createBroadcast: create } = await import("@/lib/nexora/broadcast.server");
     return create({
