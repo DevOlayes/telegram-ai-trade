@@ -1,8 +1,14 @@
 // Telegram Bot API transport + clean-chat helpers (edit-in-place, delete temp).
 import { createHash } from "node:crypto";
+import { env } from "cloudflare:workers";
 import { db } from "./core.server";
 
-const API = () => `https://api.telegram.org/bot${process.env["TELEGRAM_BOT_TOKEN"]}`;
+const workerEnv = env as unknown as {
+  TELEGRAM_BOT_TOKEN?: string;
+  APP_URL?: string;
+  TELEGRAM_BOT_USERNAME?: string;
+};
+const API = () => `https://api.telegram.org/bot${workerEnv.TELEGRAM_BOT_TOKEN}`;
 
 export type Button = { text: string; data?: string; url?: string; copy?: string };
 
@@ -130,8 +136,8 @@ export async function setCommands() {
 
 /** Ensure the Telegram webhook is registered after production secrets are configured. */
 export async function ensureTelegramWebhook() {
-  const token = process.env["TELEGRAM_BOT_TOKEN"];
-  const appUrl = process.env["APP_URL"];
+  const token = workerEnv.TELEGRAM_BOT_TOKEN;
+  const appUrl = workerEnv.APP_URL;
   if (!token || !appUrl?.startsWith("https://")) {
     return { configured: false, reason: "missing configuration" };
   }
