@@ -255,14 +255,19 @@ export function d1Db() {
       expectedFeeStatus?: string;
       status: string;
       feeStatus?: string;
+      feeStatusIfPending?: string;
       kind: string;
     }) {
       const updatedAt = new Date().toISOString();
-      const feeAssignment = input.feeStatus ? ", service_fee_status = ?" : "";
+      const feeAssignment = input.feeStatus
+        ? ", service_fee_status = ?"
+        : input.feeStatusIfPending
+          ? ", service_fee_status = CASE WHEN service_fee_status = 'pending' THEN ? ELSE service_fee_status END"
+          : "";
       const feeCondition = input.expectedFeeStatus ? " AND service_fee_status = ?" : "";
       const bindUpdate = [
         input.status,
-        ...(input.feeStatus ? [input.feeStatus] : []),
+        ...(input.feeStatus || input.feeStatusIfPending ? [input.feeStatus ?? input.feeStatusIfPending] : []),
         updatedAt,
         input.withdrawalId,
         input.expectedStatus,
