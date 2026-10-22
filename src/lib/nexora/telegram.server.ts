@@ -145,7 +145,7 @@ export async function ensureTelegramWebhook() {
 
   const secretToken = createHash("sha256").update(`telegram-webhook:${token}`).digest("base64url");
   const result = await call<boolean>("setWebhook", {
-    url: `${appUrl.replace(/\\/$/, "")}/api/public/telegram/webhook`,
+    url: `${appUrl.replace(/\/$/, "")}/api/public/telegram/webhook`,
     secret_token: secretToken,
     allowed_updates: ["message", "callback_query"],
   });
