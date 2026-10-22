@@ -125,6 +125,23 @@ export async function flagRisk(userId: string, signal: string, weight: number) {
 export const tradingUnlocked = (u: LexoraUser) =>
   !!u.trade_unlock_until && new Date(u.trade_unlock_until).getTime() > Date.now();
 
+/** Sharing is requested only after the user has actually completed a winning trade. */
+async function hasProfitableSettledTrade(userId: string): Promise<boolean> {
+  const { count, error } = await db()
+    .from("trades")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("status", "settled")
+    .eq("result", "win");
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+
+async function needsShareUnlock(u: LexoraUser): Promise<boolean> {
+  if (tradingUnlocked(u)) return false;
+  return hasProfitableSettledTrade(u.id);
+}
+
 async function sharedList(u: LexoraUser): Promise<string[]> {
   const { data } = await db()
     .from("users")
@@ -209,12 +226,15 @@ async function welcomeScreen(u: LexoraUser, s: Settings) {
 }
 
 export async function homeScreen(u: LexoraUser) {
-  const b = await getBalance(u.id);
-  const { count } = await db()
-    .from("trades")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", u.id)
-    .eq("status", "settled");
+  const [b, settledTrades] = await Promise.all([
+    getBalance(u.id),
+    db()
+      .from("trades")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", u.id)
+      .eq("status", "settled"),
+  ]);
+  const count = settledTrades.count;
   await renderScreen(
     u,
     `🤖 LEXORA — MAIN MENU\n\n💰 Total balance:        ${usd(
@@ -922,12 +942,14 @@ async function claimBonus(u: LexoraUser, s: Settings) {
     .maybeSingle();
   if (error) throw error;
   if (!claimed) return homeScreen(u);
-  await applyBalance(
-    u.id,
-    { balance: s.welcome_bonus, bonus: s.welcome_bonus },
-    { kind: "welcome_bonus", amount: s.welcome_bonus },
-  );
-  await track(u.id, "bonus_claimed", { amount: s.welcome_bonus });
+  await Promise.all([
+    applyBalance(
+      u.id,
+      { balance: s.welcome_bonus, bonus: s.welcome_bonus },
+      { kind: "welcome_bonus", amount: s.welcome_bonus },
+    ),
+    track(u.id, "bonus_claimed", { amount: s.welcome_bonus }),
+  ]);
   u.bonus_claimed = true;
   u.bonus_expires_at = expiresAt;
   await renderScreen(
@@ -960,10 +982,9 @@ async function route(u: LexoraUser, s: Settings, action: string) {
     case "shr":
       return confirmShare(u, arg);
     case "trade":
-      if (!tradingUnlocked(u)) return unlockScreen(u);
       return tradeMenuScreen(u);
     case "newtrade":
-      if (!tradingUnlocked(u)) return unlockScreen(u);
+      if (await needsShareUnlock(u)) return unlockScreen(u);
       return startTrade(u, s);
     case "active":
       return activeTradesScreen(u);
@@ -988,7 +1009,9 @@ async function route(u: LexoraUser, s: Settings, action: string) {
     case "depcancel": {
       const { cancelDeposit } = await import("./deposits.server");
       if (arg) await cancelDeposit(u.id, arg);
-      return depositScreen(u, s);
+      // Cancellation should leave users on the stable main menu, not another
+      // deposit step that can look like the flow has restarted.
+      return homeScreen(u);
     }
     case "fee":
       return feeScreen(u, s, arg);
@@ -1004,7 +1027,7 @@ async function route(u: LexoraUser, s: Settings, action: string) {
         kb([nav("setup")]),
       );
     case "enter":
-      if (!tradingUnlocked(u)) return unlockScreen(u);
+      if (await needsShareUnlock(u)) return unlockScreen(u);
       return enterTrade(u, s);
 
     case "wallet":
@@ -1173,12 +1196,13 @@ const COMMANDS: Record<string, string> = {
 };
 
 export async function handleUpdate(update: TgUpdate) {
-  const s = await getSettings();
-
   if (update.callback_query) {
     const cq = update.callback_query;
     await answerCallback(cq.id);
-    const u = await getOrCreateUser(cq.from);
+    const [s, u] = await Promise.all([
+      getSettings(),
+      getOrCreateUser(cq.from),
+    ]);
     if (u.status === "blocked") return;
     if (cq.message && !u.screen_message_id) {
       await db().from("users").update({ screen_message_id: cq.message.message_id }).eq("id", u.id);
@@ -1193,7 +1217,10 @@ export async function handleUpdate(update: TgUpdate) {
   const text = m.text.trim();
   const isCommand = text.startsWith("/");
   const refCode = text.startsWith("/start ") ? text.split(" ")[1] : undefined;
-  const u = await getOrCreateUser(m.from, refCode);
+  const [s, u] = await Promise.all([
+    getSettings(),
+    getOrCreateUser(m.from, refCode),
+  ]);
   if (u.status === "blocked") return;
 
   // Keep the chat clean: the user's command/input is transient.
