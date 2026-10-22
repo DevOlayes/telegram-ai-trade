@@ -50,8 +50,14 @@ export default {
     env: { ENABLE_SCHEDULED_TICK?: string },
     ctx: { waitUntil: (promise: Promise<unknown>) => void },
   ) {
-    if (env.ENABLE_SCHEDULED_TICK !== "true") return;
     ctx.waitUntil((async () => {
+      try {
+        const { ensureTelegramWebhook } = await import("./lib/nexora/telegram.server");
+        await ensureTelegramWebhook();
+      } catch (error) {
+        console.error("Telegram webhook registration check failed", error);
+      }
+      if (env.ENABLE_SCHEDULED_TICK !== "true") return;
       try {
         const { runTick } = await import("./lib/nexora/settlement.server");
         const result = await runTick();
