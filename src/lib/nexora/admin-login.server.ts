@@ -1,3 +1,4 @@
+import { pbkdf2Sync } from "node:crypto";
 import { getRequest, setCookie, deleteCookie, setResponseHeader } from "@tanstack/react-start/server";
 
 const COOKIE = "__Host-lexora-admin";
@@ -29,9 +30,11 @@ async function verifyPassword(password: string, encodedHash: string) {
   const normalized = saltText.replace(/-/g, "+").replace(/_/g, "/");
   const binary = atob(normalized + "=".repeat((4 - (normalized.length % 4)) % 4));
   const salt = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-  const key = await crypto.subtle.importKey("raw", text.encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations, hash: "SHA-256" }, key, 256);
-  return constantTimeEqual(toBase64Url(new Uint8Array(bits)), expected);
+  // Workers' Web Crypto deriveBits rejects PBKDF2 counts above 100,000.
+  // Use the supported Node.js crypto implementation so existing stronger hashes
+  // (including 310,000 iterations) can be verified without lowering their cost.
+  const derived = pbkdf2Sync(password, salt, iterations, 32, "sha256");
+  return constantTimeEqual(toBase64Url(derived), expected);
 }
 async function sign(payload: string, secret: string) {
   const key = await crypto.subtle.importKey("raw", text.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
