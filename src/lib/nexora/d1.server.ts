@@ -90,7 +90,7 @@ class D1Query implements PromiseLike<{ data: any; error: any; count?: number }> 
     this.action = "insert";
     this.values = (Array.isArray(input) ? input : [input]).map((item) => {
       const row = { ...item };
-      if (ID_TABLES.has(this.table) && !row.id) row.id = crypto.randomUUID();
+      if (ID_TABLES.has(this.table) && !row["id"]) row["id"] = crypto.randomUUID();
       return row;
     });
     return this;
@@ -127,7 +127,7 @@ class D1Query implements PromiseLike<{ data: any; error: any; count?: number }> 
     const op = operator.toLowerCase();
     if (op === "gte" || op === "gt" || op === "lte" || op === "lt" || op === "eq" || op === "neq") {
       const mapped: Record<string, string> = { gte: ">=", gt: ">", lte: "<=", lt: "<", eq: "=", neq: "!=" };
-      this.filters.push({ column, op: mapped[op], value });
+      this.filters.push({ column, op: mapped[op]!, value });
       return this;
     }
     if (op === "is") return this.is(column, value);
@@ -290,7 +290,7 @@ export function d1Db() {
     rpc: async (name: string, args: Record<string, unknown> = {}) => {
       try {
         if (name !== "expire_promotional_credit") throw new Error(`Unsupported D1 RPC: ${name}`);
-        const userId = args.p_user_id ?? null;
+        const userId = args["p_user_id"] ?? null;
         const now = new Date().toISOString();
         const results = await sqlDb.batch([
           sqlDb.prepare(
