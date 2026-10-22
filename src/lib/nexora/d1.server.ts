@@ -249,6 +249,54 @@ export function d1Db() {
   if (!sqlDb) throw new Error("Cloudflare D1 binding DB is unavailable. Check wrangler.jsonc and deploy environment.");
   return {
     from: (table: string) => new D1Query(sqlDb, table),
+    async refundWithdrawalAtomic(input: {
+      withdrawalId: string;
+      expectedStatus: string;
+      expectedFeeStatus?: string;
+      status: string;
+      feeStatus?: string;
+      kind: string;
+    }) {
+      const updatedAt = new Date().toISOString();
+      const feeAssignment = input.feeStatus ? ", service_fee_status = ?" : "";
+      const feeCondition = input.expectedFeeStatus ? " AND service_fee_status = ?" : "";
+      const bindUpdate = [
+        input.status,
+        ...(input.feeStatus ? [input.feeStatus] : []),
+        updatedAt,
+        input.withdrawalId,
+        input.expectedStatus,
+        ...(input.expectedFeeStatus ? [input.expectedFeeStatus] : []),
+      ];
+      const statements = [
+        sqlDb.prepare(`UPDATE withdrawals SET status = ?${feeAssignment}, updated_at = ?
+          WHERE id = ? AND status = ?${feeCondition}`).bind(...bindUpdate),
+        sqlDb.prepare(`INSERT INTO balances (user_id)
+          SELECT user_id FROM withdrawals WHERE id = ? AND status = ? AND updated_at = ?
+          ON CONFLICT(user_id) DO NOTHING`).bind(input.withdrawalId, input.status, updatedAt),
+        sqlDb.prepare(`UPDATE balances
+          SET balance = ROUND(balance + (SELECT amount FROM withdrawals WHERE id = ? AND status = ? AND updated_at = ?), 2),
+              profit = ROUND(profit + (SELECT amount FROM withdrawals WHERE id = ? AND status = ? AND updated_at = ?), 2),
+              updated_at = ?
+          WHERE user_id = (SELECT user_id FROM withdrawals WHERE id = ? AND status = ? AND updated_at = ?)`).bind(
+            input.withdrawalId, input.status, updatedAt,
+            input.withdrawalId, input.status, updatedAt,
+            updatedAt,
+            input.withdrawalId, input.status, updatedAt,
+          ),
+        sqlDb.prepare(`INSERT INTO transactions (user_id, kind, amount, balance_after, ref_id, note)
+          SELECT w.user_id, ?, w.amount, b.balance, w.id, NULL
+          FROM withdrawals w JOIN balances b ON b.user_id = w.user_id
+          WHERE w.id = ? AND w.status = ? AND w.updated_at = ?`).bind(
+            input.kind, input.withdrawalId, input.status, updatedAt,
+          ),
+      ];
+      const results = await sqlDb.batch(statements);
+      if (results.some((result) => result.success === false)) throw new Error("Atomic withdrawal refund failed");
+      return sqlDb.prepare(
+        "SELECT id, user_id, amount, status, service_fee_status, updated_at FROM withdrawals WHERE id = ? AND status = ? AND updated_at = ?",
+      ).bind(input.withdrawalId, input.status, updatedAt).first<Record<string, unknown>>();
+    },
     async creditDepositAtomic(input: { depositId: string; txHash: string; amount: number }) {
       const creditedAt = new Date().toISOString();
       const updatedAt = new Date().toISOString();
