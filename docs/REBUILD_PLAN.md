@@ -1,57 +1,65 @@
-# Independent backend rebuild plan
+# Cloudflare migration plan (behavior-preserving)
 
-## Current stack found in the repository
+## Objective
+
+Move the existing application from its current Lovable/Supabase backend to Cloudflare while preserving the existing product, UI, business rules, calculations, messages, and user flows. This is a migration, not a redesign or product review.
+
+Do not intentionally change trading behavior, onboarding, bonus rules, referral rules, deposit/withdrawal steps, service-fee behavior, admin capabilities, wording, or other existing flows. If a Cloudflare platform difference requires a change, document the compatibility issue and implement the smallest equivalent replacement.
+
+## Current application
 
 - React 19 + TanStack Start/Router + Vite 8 + Nitro, deployed as a Cloudflare Worker.
-- Supabase JS client for Postgres/Auth/Storage. Server logic expects a server-only service-role credential.
-- Telegram webhook route: `src/routes/api/public/telegram/webhook.ts`.
-- Scheduler endpoint: `src/routes/api/public/nexora/tick.ts`.
-- Core modules: `core.server.ts`, `bot.server.ts`, `telegram.server.ts`, `engine.server.ts`, `settlement.server.ts`, `referrals.server.ts`, `deposits.server.ts`, `payments.server.ts`, `tron.server.ts`, `broadcast.server.ts`.
-- Admin: `src/routes/admin.tsx`; login: `src/routes/auth.tsx`.
-- Generated Supabase types exist; `drizzle/schema.ts` is empty, so it is not currently a source of database schema.
+- Server business logic is in `src/lib/nexora/`.
+- Telegram webhook: `src/routes/api/public/telegram/webhook.ts`.
+- Scheduler/tick route: `src/routes/api/public/nexora/tick.ts`.
+- Admin UI: `src/routes/admin.tsx`; login UI: `src/routes/auth.tsx`.
+- Current data access uses `@supabase/supabase-js`; `drizzle/schema.ts` is empty.
+- Existing generated database types are in `src/integrations/supabase/types.ts`.
 
-## Tables described by generated types
+## Target Cloudflare services
 
-`users`, `user_roles`, `balances`, `transactions`, `trades`, `trading_pairs`, `deposits`, `withdrawals`, `referrals`, `referral_rewards`, `milestones`, `user_milestones`, `events`, `system_settings`, `admin_actions`, `broadcasts`, `broadcast_recipients`.
+- **Workers:** keep the existing app and HTTP endpoints running on the current Worker.
+- **D1:** recreate the existing relational schema and database functions using SQLite-compatible schema, queries, and transactional operations.
+- **R2 (only if needed):** host/migrate files currently stored in Supabase Storage; keep existing URLs and behavior equivalent where practical.
+- **Worker secrets and bindings:** configure Telegram and other credentials privately, never in Git.
+- **Scheduled execution:** preserve the existing tick/scheduling behavior using a Cloudflare-compatible mechanism. Do not change settlement or payment business rules as part of this migration.
 
-The types also describe `has_role`, `expire_promotional_credit`, and enum `app_role`. SQL migrations must still define constraints, indexes, defaults, functions, and access policies.
+D1 is not wire-compatible with the Supabase client. The data-access layer must therefore be ported to D1 while keeping callers' business behavior the same. Do not simply point the current Supabase client at D1.
 
-## Findings to address
+## Database objects represented in the generated types
 
-1. **Backend coupling:** Wrangler config points to the old Supabase project. `core.server.ts` needs `SUPABASE_SERVICE_ROLE_KEY`; Telegram transport needs `TELEGRAM_BOT_TOKEN`.
-2. **Potential Wrangler config bug:** the Supabase URL and publishable key in `wrangler.jsonc` appear to include literal quote characters. Normalize and verify these values before using a new backend.
-3. **Scheduler security:** `/api/public/nexora/tick` exposes GET and POST without authentication and calls a job that can settle trades, update balances, process payment checks, and send broadcasts. Replace this with a Cloudflare Cron Trigger or a strongly authenticated server-only job.
-4. **Webhook reliability:** the webhook checks Telegram's secret-token header, but handler exceptions are logged and the route still returns success. Add durable logs and idempotent processing to avoid silently losing updates.
-5. **Trading simulation:** `engine.server.ts` generates random recommendations and synthetic prices. Its outcome function can guarantee starter wins and prevent consecutive losses. This is a simulation, not live-market AI; label it clearly and never imply guaranteed returns.
-6. **Withdrawal flow:** the README says not to require a separate withdrawal payment, but the current bot/payment modules ask users to send a fixed fee before processing. Do not reproduce that pattern in the rebuild. Keep real-money deposits/withdrawals disabled until transparent rules, secure custody, and applicable compliance are addressed.
-7. **Assets and secrets:** update Lovable asset-host fallbacks and move all private credentials into Cloudflare Worker secrets, never Git.
+The types describe 17 tables: `users`, `user_roles`, `balances`, `transactions`, `trades`, `trading_pairs`, `deposits`, `withdrawals`, `referrals`, `referral_rewards`, `milestones`, `user_milestones`, `events`, `system_settings`, `admin_actions`, `broadcasts`, and `broadcast_recipients`.
 
-## Recommended minimal-change architecture
+They also describe the `has_role` and `expire_promotional_credit` database functions and the `app_role` enum. D1 equivalents must preserve their existing semantics. Generated types do not fully specify defaults, indexes, constraints, or triggers, so inspect every query and any available migrations before finalizing the schema.
 
-- Keep the current Cloudflare Worker frontend and Telegram HTTPS webhook.
-- Use a Supabase project owned by the developer for Postgres/Auth/Storage, since the code already uses Supabase APIs. Choose a different database only if needed; that requires a larger rewrite.
-- Create versioned SQL migrations from any existing migration files plus the generated types and database functions/policies referenced by the code.
-- Recreate required Storage buckets or move public assets to Cloudflare.
-- Use Cloudflare Cron Triggers for settlement work, with idempotent database updates and no public unauthenticated tick endpoint.
-- Treat the original users and balances as a separate recovery effort; the new database will start with new registrations unless a legitimate export is recovered.
+## Migration sequence
 
-## Work order
+1. Inventory existing queries, schema types, migrations, environment variables, Storage use, and auth behavior.
+2. Add a Cloudflare D1 schema and versioned migration files representing the existing database.
+3. Implement a D1-backed data-access layer and port query operations without changing business rules.
+4. Port database functions to equivalent D1 transactions/queries.
+5. Keep Telegram webhook routes, message handling, callback data, bot text, and flows behavior-compatible.
+6. Keep all current onboarding, bonus, trading, referral, deposit, withdrawal, service-fee, admin, and broadcast behavior unchanged.
+7. Configure Cloudflare bindings and secrets without committing credentials.
+8. Run build/type checks and compare the existing flows against the migrated implementation.
+9. Deploy to a staging Worker, test end-to-end, then switch over once the Cloudflare backend is configured.
 
-- [ ] Inspect all SQL migrations, environment variables, route files, policies, and Storage use.
-- [ ] Normalize Wrangler configuration and add a secret-free environment example.
-- [ ] Create SQL migrations for tables, indexes, constraints, database functions, and access policies.
-- [ ] Set up the owned Supabase project and apply migrations.
-- [ ] Reconnect client/server Supabase configuration.
-- [ ] Secure and test Telegram webhook delivery and duplicate-update handling.
-- [ ] Replace the public tick endpoint with scheduled execution.
-- [ ] Run build/lint/type checks and end-to-end tests for onboarding, bonus, referrals, simulation, balances, admin permissions, and failures.
-- [ ] Deploy to a staging Worker, smoke-test, then cut over.
+## Important constraints
+
+- Do not redesign the UI or rewrite copy.
+- Do not intentionally alter trading outcomes, balance math, thresholds, settings, or payment/withdrawal rules.
+- Do not delete existing functionality because it seems undesirable.
+- Do not claim the old database has been migrated unless an authorized export is actually available. The code alone cannot recover old user records.
+- Preserve the current implementation in Git and make migration changes on the dedicated rebuild branch until tested.
+
+## Configuration currently found
+
+The current `wrangler.jsonc` still points to the old Supabase project. The app will not be fully migrated until the Supabase client usage is replaced with the D1 data-access layer and Cloudflare bindings/secrets are configured.
 
 ## References
 
-- Supabase migrations: https://supabase.com/docs/guides/deployment/database-migrations
-- Telegram Bot API webhooks: https://core.telegram.org/bots/api
+- Cloudflare D1: https://developers.cloudflare.com/d1/
+- Cloudflare D1 migrations: https://developers.cloudflare.com/d1/reference/migrations/
+- Cloudflare R2: https://developers.cloudflare.com/r2/
+- Cloudflare Worker secrets: https://developers.cloudflare.com/workers/configuration/secrets/
 - Cloudflare Cron Triggers: https://developers.cloudflare.com/workers/configuration/cron-triggers/
-- Community migration utility to evaluate (does not bypass backend access controls): https://github.com/dreamlit-ai/lovable-cloud-to-supabase-exporter
-
-This plan describes code and behavior reconstruction, not recovery of the inaccessible database records. Keep the original backend intact while data recovery remains a separate possibility.
