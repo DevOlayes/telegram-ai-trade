@@ -47,8 +47,8 @@
       }
     ],
     "vars": {
-      "APP_URL": "https://telegram-ai-trade-preview-telegram-ai-trade.godwin2000vic.workers.dev",
-      "ASSET_HOST": "https://telegram-ai-trade-preview-telegram-ai-trade.godwin2000vic.workers.dev",
+      "APP_URL": "https://rebuild-independent-backend-plan-telegram-ai-trade.godwin2000vic.workers.dev",
+      "ASSET_HOST": "https://rebuild-independent-backend-plan-telegram-ai-trade.godwin2000vic.workers.dev",
       "TELEGRAM_BOT_USERNAME": "nexoraiaxbot",
       "ENABLE_SCHEDULED_TICK": "false"
     }
