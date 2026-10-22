@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { adminLogin } from "@/lib/nexora/admin-auth.server";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -18,28 +18,23 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState<"in" | "up">("in");
-  const [msg, setMsg] = useState("");
+    const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setMsg("");
-    const res =
-      mode === "in"
-        ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({
-            email,
-            password,
-            options: { emailRedirectTo: window.location.origin + "/admin" },
-          });
-    setBusy(false);
-    if (res.error) return setMsg(res.error.message);
-    if (mode === "up" && !res.data.session) return setMsg("Check your email to confirm your account.");
-    void navigate({ to: "/admin" });
+    try {
+      await adminLogin({ data: { username, password } });
+      setBusy(false);
+      void navigate({ to: "/admin" });
+    } catch (error) {
+      setBusy(false);
+      setMsg(error instanceof Error ? error.message : "Sign-in failed.");
+    }
   };
 
   return (
@@ -48,15 +43,17 @@ function AuthPage() {
         <h1 className="text-2xl font-bold">LEXORA Admin</h1>
         <input
           className="w-full rounded-lg border border-border bg-card px-4 py-3"
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          type="text"
+          autoComplete="username"
+          placeholder="Username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
           required
         />
         <input
           className="w-full rounded-lg border border-border bg-card px-4 py-3"
           type="password"
+          autoComplete="current-password"
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -66,14 +63,7 @@ function AuthPage() {
           disabled={busy}
           className="w-full rounded-lg bg-primary px-4 py-3 font-semibold text-primary-foreground"
         >
-          {mode === "in" ? "Sign in" : "Create account"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode(mode === "in" ? "up" : "in")}
-          className="w-full text-sm text-muted-foreground"
-        >
-          {mode === "in" ? "Need an account? Sign up" : "Already have an account? Sign in"}
+          {busy ? "Signing in…" : "Sign in"}
         </button>
         {msg && <p className="text-sm text-destructive">{msg}</p>}
       </form>
