@@ -20,7 +20,7 @@ on:
       - 'wrangler.jsonc'
 
 concurrency:
-  group: migration-build-${{ github.ref }}
+  group: migration-build
   cancel-in-progress: true
 
 permissions:
