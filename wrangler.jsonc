@@ -28,5 +28,22 @@
     "APP_URL": "https://telegram-ai-trade.godwin2000vic.workers.dev",
     "ASSET_HOST": "https://telegram-ai-trade.godwin2000vic.workers.dev",
     "TELEGRAM_BOT_USERNAME": "nexoraiaxbot"
+  },
+  "previews": {
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "telegram-ai-trade-preview",
+        "database_id": "8b3d7383-2dd9-4beb-a631-5e5de3a62d98",
+        "migrations_dir": "migrations"
+      }
+    ],
+    "vars": {
+      "SUPABASE_URL": "https://example.invalid",
+      "SUPABASE_PUBLISHABLE_KEY": "preview-disabled",
+      "APP_URL": "https://preview.invalid",
+      "ASSET_HOST": "https://preview.invalid",
+      "TELEGRAM_BOT_USERNAME": "nexoraiaxbot"
+    }
   }
 }
