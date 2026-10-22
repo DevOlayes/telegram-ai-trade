@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireAdminAuth } from "@/lib/nexora/admin-auth.server";
+import { requireAdminAuth, loginAdmin, logoutAdmin, getAdminSessionStatus } from "@/lib/nexora/admin-auth.server";
 import { z } from "zod";
 
 async function assertAdmin(context: { adminUser?: string }) {
@@ -9,17 +9,14 @@ async function assertAdmin(context: { adminUser?: string }) {
 export const adminLogin = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => z.object({ username: z.string().min(1).max(100), password: z.string().min(1).max(200) }).parse(input))
   .handler(async ({ data }) => {
-    const { loginAdmin } = await import("@/lib/nexora/admin-auth.server");
     return loginAdmin(data.username, data.password);
   });
 
 export const adminLogout = createServerFn({ method: "POST" }).handler(async () => {
-  const { logoutAdmin } = await import("@/lib/nexora/admin-auth.server");
   return logoutAdmin();
 });
 
 export const getAdminSession = createServerFn({ method: "GET" }).handler(async () => {
-  const { getAdminSessionStatus } = await import("@/lib/nexora/admin-auth.server");
   return getAdminSessionStatus();
 });
 
