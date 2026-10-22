@@ -1,14 +1,10 @@
 // LEXORA core: database access, settings, money math, user/account system.
 // Server-only. Never imported from client code.
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { d1Db } from "./d1.server";
 
-let _db: SupabaseClient | null = null;
-export function db(): SupabaseClient {
-  if (!_db) {
-    _db = createClient(process.env["SUPABASE_URL"]!, process.env["SUPABASE_SERVICE_ROLE_KEY"]!, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-  }
+let _db: ReturnType<typeof d1Db> | null = null;
+export function db(): ReturnType<typeof d1Db> {
+  if (!_db) _db = d1Db();
   return _db;
 }
 
