@@ -116,6 +116,7 @@ export async function answerCallback(id: string, text?: string) {
 export async function setCommands() {
   return call("setMyCommands", {
     commands: [
+      { command: "start", description: "🚀 Start the bot" },
       { command: "home", description: "🏠 Home" },
       { command: "trade", description: "🚀 Trade" },
       { command: "invite", description: "👥 Invite & Earn" },
