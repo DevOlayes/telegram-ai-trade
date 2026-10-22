@@ -168,11 +168,11 @@ export async function applyBalance(
   await getBalance(userId);
   const next = await db().applyBalanceAtomic(userId, delta, ledger);
   return {
-    balance: fromCents(toCents(next.balance as number)),
-    bonus: fromCents(toCents(next.bonus as number)),
-    profit: fromCents(toCents(next.profit as number)),
-    referral_balance: fromCents(toCents(next.referral_balance as number)),
-    updated_at: String(next.updated_at),
+    balance: fromCents(toCents(next["balance"] as number)),
+    bonus: fromCents(toCents(next["bonus"] as number)),
+    profit: fromCents(toCents(next["profit"] as number)),
+    referral_balance: fromCents(toCents(next["referral_balance"] as number)),
+    updated_at: String(next["updated_at"]),
   };
 }
 
