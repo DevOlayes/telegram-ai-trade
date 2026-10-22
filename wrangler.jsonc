@@ -15,8 +15,8 @@
     "enabled": true
   },
   "vars": {
-    "SUPABASE_URL": "\"https://povzibvrbzaqokzmdfon.supabase.co\"",
-    "SUPABASE_PUBLISHABLE_KEY": "\"sb_publishable_a2waNRebUzA36a79jTX1Sg_VPnt6b6Q\"",
+    "SUPABASE_URL": "https://povzibvrbzaqokzmdfon.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_a2waNRebUzA36a79jTX1Sg_VPnt6b6Q",
     "APP_URL": "https://telegram-ai-trade.godwin2000vic.workers.dev",
     "ASSET_HOST": "https://telegram-ai-trade.godwin2000vic.workers.dev",
     "TELEGRAM_BOT_USERNAME": "nexoraiaxbot"
