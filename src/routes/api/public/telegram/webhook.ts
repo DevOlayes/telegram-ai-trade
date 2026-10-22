@@ -31,6 +31,8 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
           await handleUpdate(update as never);
         } catch (e) {
           console.error("nexora webhook error", e);
+          // Do not acknowledge an update that failed; Telegram can retry it.
+          return new Response("Webhook processing failed", { status: 500 });
         }
         return Response.json({ ok: true });
       },
