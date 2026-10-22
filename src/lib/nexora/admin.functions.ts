@@ -1,17 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAdminAuth } from "@/lib/nexora/admin-auth.server";
 import { z } from "zod";
 
-async function assertAdmin(context: { supabase: { rpc: Function }; userId: string }) {
-  const { data } = await context.supabase.rpc("has_role", {
-    _user_id: context.userId,
-    _role: "admin",
-  });
-  if (!data) throw new Error("Forbidden");
+async function assertAdmin(context: { adminUser?: string }) {
+  if (!context.adminUser) throw new Error("Forbidden");
 }
 
 export const getAdminOverview = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdminAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context as never);
     const { db } = await import("@/lib/nexora/core.server");
@@ -80,7 +76,7 @@ export const getAdminOverview = createServerFn({ method: "GET" })
   });
 
 export const updateSetting = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdminAuth])
   .inputValidator((i: unknown) => z.object({ key: z.string(), value: z.string() }).parse(i))
   .handler(async ({ context, data }) => {
     await assertAdmin(context as never);
@@ -104,7 +100,7 @@ export const updateSetting = createServerFn({ method: "POST" })
   });
 
 export const setWithdrawalStatus = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdminAuth])
   .inputValidator((i: unknown) =>
     z.object({ id: z.string().uuid(), status: z.enum(["pending", "paid", "rejected"]) }).parse(i),
   )
@@ -165,7 +161,7 @@ export const setWithdrawalStatus = createServerFn({ method: "POST" })
   });
 
 export const setUserStatus = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdminAuth])
   .inputValidator((i: unknown) =>
     z.object({ id: z.string().uuid(), status: z.enum(["active", "blocked"]) }).parse(i),
   )
@@ -183,7 +179,7 @@ export const setUserStatus = createServerFn({ method: "POST" })
   });
 
 export const getAbandonedWithdrawals = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdminAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context as never);
     const { abandonedWithdrawals } = await import("@/lib/nexora/payments.server");
@@ -191,7 +187,7 @@ export const getAbandonedWithdrawals = createServerFn({ method: "GET" })
   });
 
 export const sendWithdrawalRecovery = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdminAuth])
   .inputValidator((i: unknown) => z.object({ userId: z.string().uuid() }).parse(i))
   .handler(async ({ context, data }) => {
     await assertAdmin(context as never);
@@ -226,7 +222,7 @@ const broadcastInputSchema = z.object({
 });
 
 export const previewBroadcastAudience = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdminAuth])
   .inputValidator((i: unknown) => z.object({ audience: broadcastInputSchema.shape.audience, days: z.number().int().min(1).max(365).optional() }).parse(i))
   .handler(async ({ context, data }) => {
     await assertAdmin(context as never);
@@ -235,7 +231,7 @@ export const previewBroadcastAudience = createServerFn({ method: "POST" })
   });
 
 export const prepareBroadcastUpload = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdminAuth])
   .inputValidator((i: unknown) => z.object({ name: z.string().min(1).max(200), type: z.enum(["image/jpeg", "image/png", "image/webp", "video/mp4"]), size: z.number().int().positive().max(20 * 1024 * 1024) }).parse(i))
   .handler(async ({ context, data }) => {
     await assertAdmin(context as never);
@@ -250,7 +246,7 @@ export const prepareBroadcastUpload = createServerFn({ method: "POST" })
   });
 
 export const listBroadcastMedia = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdminAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context as never);
     const { db } = await import("@/lib/nexora/core.server");
@@ -270,7 +266,7 @@ export const listBroadcastMedia = createServerFn({ method: "GET" })
   });
 
 export const createBroadcast = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdminAuth])
   .inputValidator((i: unknown) => broadcastInputSchema.parse(i))
   .handler(async ({ context, data }) => {
     await assertAdmin(context as never);
@@ -291,7 +287,7 @@ export const createBroadcast = createServerFn({ method: "POST" })
   });
 
 export const listBroadcasts = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdminAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context as never);
     const { db } = await import("@/lib/nexora/core.server");
@@ -305,7 +301,7 @@ export const listBroadcasts = createServerFn({ method: "GET" })
   });
 
 export const listBroadcastRecipients = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdminAuth])
   .inputValidator((i: unknown) => z.object({ broadcastId: z.string().uuid() }).parse(i))
   .handler(async ({ context, data }) => {
     await assertAdmin(context as never);
@@ -335,7 +331,7 @@ export const listBroadcastRecipients = createServerFn({ method: "POST" })
 
 
 export const runBroadcast = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdminAuth])
   .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
   .handler(async ({ context, data }) => {
     await assertAdmin(context as never);
@@ -351,7 +347,7 @@ export const runBroadcast = createServerFn({ method: "POST" })
   });
 
 export const getRealMoneyReport = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdminAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context as never);
     const { db } = await import("@/lib/nexora/core.server");
