@@ -1,4 +1,3 @@
-import { pbkdf2Sync } from "node:crypto";
 import { getRequest, setCookie, deleteCookie, setResponseHeader } from "@tanstack/react-start/server";
 
 const COOKIE = "__Host-lexora-admin";
@@ -26,14 +25,21 @@ function config() {
 async function verifyPassword(password: string, encodedHash: string) {
   const [algorithm, iterationText, saltText, expected] = encodedHash.split("$");
   const iterations = Number(iterationText);
-  if (algorithm !== "pbkdf2-sha256" || !Number.isInteger(iterations) || iterations < 100000 || iterations > 1000000 || !saltText || !expected) return false;
+  if (algorithm !== "pbkdf2-sha256" || !Number.isInteger(iterations) || iterations < 100000 || !saltText || !expected) return false;
+  // Cloudflare Workers enforces a hard PBKDF2 ceiling of 100,000 iterations.
+  // Hashes created on Node with a higher work factor must be regenerated for Workers.
+  if (iterations > 100000) {
+    throw new Error("ADMIN_PASSWORD_HASH is incompatible with Cloudflare Workers (PBKDF2 iterations exceed 100000). Regenerate it with `bun run admin:hash` and update the ADMIN_PASSWORD_HASH Worker secret.");
+  }
   const normalized = saltText.replace(/-/g, "+").replace(/_/g, "/");
   const binary = atob(normalized + "=".repeat((4 - (normalized.length % 4)) % 4));
   const salt = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-  // Workers' Web Crypto deriveBits rejects PBKDF2 counts above 100,000.
-  // Use the supported Node.js crypto implementation so existing stronger hashes
-  // (including 310,000 iterations) can be verified without lowering their cost.
-  const derived = pbkdf2Sync(password, salt, iterations, 32, "sha256");
+  const key = await crypto.subtle.importKey("raw", text.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const derived = new Uint8Array(await crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt, iterations },
+    key,
+    256,
+  ));
   return constantTimeEqual(toBase64Url(derived), expected);
 }
 async function sign(payload: string, secret: string) {
