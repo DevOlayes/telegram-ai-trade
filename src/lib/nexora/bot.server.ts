@@ -52,7 +52,7 @@ const bonusLine = (u: LexoraUser, bonus: number | string) => {
 };
 
 const creditTerms = (s: Settings) =>
-  `Promotional trading credit, not a cash deposit. Unspent credit expires 48 hours after claiming (existing claims: 48 hours from rollout). It cannot be withdrawn or reused once spent. Trading results are synthetic; profits are not guaranteed. Any profit withdrawal requires at least ${usd(s.min_withdrawal)} in eligible profit, an account at least ${s.withdrawal_wait_hours}h old, and a one-time ${usd(s.service_fee)} service charge before review. No deposit is needed to start; trading access requires sharing on 2 platforms for 24h access.`;
+  `Promotional trading credit, not a cash deposit. Unspent credit expires 48 hours after claiming (existing claims: 48 hours from rollout). It cannot be withdrawn or reused once spent. Trading results are synthetic; profits are not guaranteed. Withdrawals require more than $10 in eligible profit, with no account-age waiting period. A one-time service charge may still apply before review. No deposit is needed to start; trading access requires sharing on 2 platforms for 24h access.`;
 
 const creditExpiryNotice = (u: LexoraUser, bonus: number | string) => {
   if (toCents(bonus) <= 0 || !u.bonus_expires_at) return "";
@@ -625,9 +625,7 @@ async function withdrawScreen(u: LexoraUser, s: Settings) {
   const feeWallet = String(s.fee_wallet ?? "");
   await renderScreen(
     u,
-    `💸 WITHDRAW PROFIT\n\n✅ Profit of at least ${usd(
-      s.min_withdrawal,
-    )}\n✅ Account older than ${s.withdrawal_wait_hours}h\n\nAmount:   ${usd(
+    `💸 WITHDRAW PROFIT\n\n✅ Eligible profit above $10\n✅ No account-age waiting period\n\nAmount:   ${usd(
       eligible,
     )}\nNetwork:  🔴 TRON (TRC-20)\nFee:      ${Number(s.service_fee || 4).toFixed(
       2,
