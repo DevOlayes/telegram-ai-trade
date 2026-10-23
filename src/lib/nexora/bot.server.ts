@@ -259,9 +259,7 @@ async function howScreen(u: LexoraUser, s: Settings) {
     u,
     `ℹ️ HOW LEXORA WORKS\n\n1. Claim your ${usd(
       s.welcome_bonus,
-    )} bonus — no deposit.\n2. LEXORA AI picks the trade.\n3. You choose the amount.\n4. Trades run 30 min – 4 hours.\n5. Wins and losses update your balance.\n\n${LINE}\n\n💳 Deposit:  USDT (TRC-20) only, auto-credited\n💸 Withdraw: min ${usd(
-      s.min_withdrawal,
-    )} profit, after ${s.withdrawal_wait_hours}h\n👥 Invite:   friend gets ${usd(
+    )} bonus — no deposit.\n2. LEXORA AI picks the trade.\n3. You choose the amount.\n4. Trades run 30 min – 4 hours.\n5. Wins and losses update your balance.\n\n${LINE}\n\n💳 Deposit:  USDT (TRC-20) only, auto-credited\n💸 Withdraw: eligible profit above $10; no waiting period\n👥 Invite:   friend gets ${usd(
       s.welcome_bonus,
     )}, you earn ${usd(
       s.referral_reward,
@@ -568,9 +566,7 @@ async function newDeposit(u: LexoraUser, s: Settings, amount: number) {
 
 /* ------------------------------ wallet ------------------------------ */
 
-function eligibleAt(u: LexoraUser, s: Settings) {
-  return new Date(u.created_at).getTime() + s.withdrawal_wait_hours * 3600000;
-}
+const MIN_WITHDRAWAL_PROFIT = 10;
 
 async function walletScreen(u: LexoraUser, s: Settings) {
   const b = await getBalance(u.id);
@@ -586,9 +582,7 @@ async function walletScreen(u: LexoraUser, s: Settings) {
       b.referral_balance,
     )}\n\n${LINE}\nOnly withdrawable profit can be paid out — the ${usd(
       s.welcome_bonus,
-    )} credit is not withdrawable or reusable once spent.${creditExpiryNotice(u, b.bonus)}\nWithdrawals: min ${usd(
-      s.min_withdrawal,
-    )} eligible profit, ${s.withdrawal_wait_hours}h after registration; one-time ${usd(s.service_fee)} service charge before review. Trading results are synthetic.`,
+    )} credit is not withdrawable or reusable once spent.${creditExpiryNotice(u, b.bonus)}\nWithdrawals: eligible profit must be above $10; no account-age waiting period. Trading results are synthetic.`,
     kb([
       [{ text: "💳 DEPOSIT", data: "deposit" }, { text: "💸 WITHDRAW", data: "wd" }],
       [{ text: "📜 WITHDRAWALS", data: "wdlist" }],
@@ -600,14 +594,7 @@ async function walletScreen(u: LexoraUser, s: Settings) {
 async function withdrawScreen(u: LexoraUser, s: Settings) {
   const b = await getBalance(u.id);
   const eligible = Math.max(0, Number(b.profit));
-  const openAt = eligibleAt(u, s);
-  const ageOk = Date.now() >= openAt;
-  const amountOk = toCents(eligible) >= toCents(s.min_withdrawal);
-  const mark = (ok: boolean) => (ok ? "✅" : "❌");
-
-  const left = Math.max(0, openAt - Date.now());
-  const d = Math.floor(left / 86400000);
-  const h = Math.floor((left % 86400000) / 3600000);
+  const amountOk = toCents(eligible) > toCents(MIN_WITHDRAWAL_PROFIT);
 
   const { data: openWd } = await db()
     .from("withdrawals")
@@ -617,20 +604,14 @@ async function withdrawScreen(u: LexoraUser, s: Settings) {
     .limit(1);
   if (openWd?.length) return feeScreen(u, s, openWd[0]!.id);
 
-  if (!ageOk || !amountOk) {
+  if (!amountOk) {
     await renderScreen(
       u,
-      `💸 WITHDRAW\n\nOnly profit can be withdrawn. Your ${usd(
+      `💸 WITHDRAW\n\nOnly eligible profit can be withdrawn. Your ${usd(
         s.welcome_bonus,
-      )} bonus is trading capital and stays in the account.\n\n${LINE}\n\n${mark(
-        amountOk,
-      )} Profit of at least ${usd(s.min_withdrawal)}\n    You have: ${usd(eligible)}\n\n${mark(
-        ageOk,
-      )} Account older than ${s.withdrawal_wait_hours}h\n    ${
-        ageOk ? "Unlocked" : `Unlocks in ${d}d ${h}h`
-      }\n\n${LINE}\nA one-time ${usd(
-        s.service_fee,
-      )} service charge applies to your first withdrawal.`,
+      )} bonus is trading capital and stays in the account.\n\n${LINE}\n\n❌ Eligible profit must be above ${usd(
+        MIN_WITHDRAWAL_PROFIT,
+      )}.\nYou have: ${usd(eligible)}\n\nThere is no account-age waiting period.`,
       kb([
         [{ text: "🚀 START TRADE", data: "newtrade" }],
         [{ text: "👥 INVITE & EARN", data: "invite" }],
