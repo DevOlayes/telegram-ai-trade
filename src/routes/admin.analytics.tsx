@@ -91,6 +91,10 @@ function AnalyticsPage() {
             <div><p className="text-xs text-muted-foreground">Registration events (90d)</p><p className="text-xl font-semibold">{data.trackingHealth.registrationEvents90d}</p></div>
             <div><p className="text-xs text-muted-foreground">Deposit attempts (7d)</p><p className="text-xl font-semibold">{data.totals.depositAttempts7d}</p></div>
             <div><p className="text-xs text-muted-foreground">Withdrawals created (7d)</p><p className="text-xl font-semibold">{data.totals.withdrawals7d}</p></div>
+            <div><p className="text-xs text-muted-foreground">Trade-opened events (90d)</p><p className="text-xl font-semibold">{data.totals.tradeOpenedEvents90d}</p></div>
+            <div><p className="text-xs text-muted-foreground">Bonus-claimed events (90d)</p><p className="text-xl font-semibold">{data.totals.bonusClaimedEvents90d}</p></div>
+            <div><p className="text-xs text-muted-foreground">Deposit-started events (90d)</p><p className="text-xl font-semibold">{data.totals.depositStartedEvents90d}</p></div>
+            <div><p className="text-xs text-muted-foreground">Withdrawal-request events (90d)</p><p className="text-xl font-semibold">{data.totals.withdrawalRequestedEvents90d}</p></div>
           </div>
           <p className="mt-4 rounded-lg bg-muted/50 p-3 text-xs leading-relaxed text-muted-foreground">{data.trackingHealth.note}</p>
           <p className="mt-3 text-xs text-muted-foreground">Generated {new Date(data.generatedAt).toLocaleString()} · Auto-refreshes every minute. This page provides a weekly report view; it does not send email or Telegram reports automatically.</p>
