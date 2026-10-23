@@ -60,6 +60,7 @@ export const getAdminAnalytics = createServerFn({ method: "GET" })
       };
     });
     const registrationEvents = events.filter((e) => e.name === "registration").length;
+    const eventCounts = Object.fromEntries(["registration", "bonus_claimed", "trade_opened", "deposit_started", "withdrawal_requested", "trading_unlocked", "ai_recommendation"].map((name) => [name, events.filter((event) => event.name === name).length]));
     return {
       generatedAt: new Date(now).toISOString(),
       windowDays: 90,
@@ -74,6 +75,10 @@ export const getAdminAnalytics = createServerFn({ method: "GET" })
         referredUsers90d: referralUsers.size,
         events90d: events.length,
         registrationEvents90d: registrationEvents,
+        depositStartedEvents90d: eventCounts["deposit_started"] ?? 0,
+        tradeOpenedEvents90d: eventCounts["trade_opened"] ?? 0,
+        bonusClaimedEvents90d: eventCounts["bonus_claimed"] ?? 0,
+        withdrawalRequestedEvents90d: eventCounts["withdrawal_requested"] ?? 0,
         withdrawals7d: withdrawals.length,
         settledTrades90d: trades.filter((t) => t.status.toLowerCase() === "settled" || Boolean(t.result)).length,
       },
@@ -88,6 +93,7 @@ export const getAdminAnalytics = createServerFn({ method: "GET" })
       trackingHealth: {
         eventRows90d: events.length,
         registrationEvents90d: registrationEvents,
+        eventCounts,
         note: "Funnel steps are derived from persisted account, trade, and deposit records. Event tracking currently reflects only events explicitly written to the events table; retention uses last_seen_at and is an approximation, not a strict cohort activity event.",
       },
     };
