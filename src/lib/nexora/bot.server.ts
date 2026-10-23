@@ -559,6 +559,7 @@ async function newDeposit(u: LexoraUser, s: Settings, amount: number) {
   if (existing) return depositPayScreen(u, s, existing);
   const dep = await createDeposit(u.id, Math.floor(amount), wallet);
   if (!dep) return depositScreen(u, s);
+  await track(u.id, "deposit_started", { amount: Math.floor(amount) });
   await setUiState(u.id, {});
   u.ui_state = {};
   return depositPayScreen(u, s, dep);
