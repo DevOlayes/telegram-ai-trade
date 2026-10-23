@@ -147,6 +147,7 @@ function AdminPage() {
           />
         </div>
       )}
+      <Link to="/admin/analytics" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm hover:bg-accent">Analytics</Link>
       <span className="ml-auto text-xs text-muted-foreground">
         Updated {new Date(dataUpdatedAt).toLocaleTimeString()}
       </span>
