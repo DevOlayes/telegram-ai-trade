@@ -176,11 +176,14 @@ async function sendOne(
   const reply_markup = markup(bc.buttons ?? []);
   const method =
     bc.media_type === "video" ? "sendVideo" : bc.media_type === "photo" ? "sendPhoto" : "sendMessage";
+  const mediaReference = typeof bc.media_url === "string" && bc.media_url.startsWith("telegram-file-id:")
+    ? bc.media_url.slice("telegram-file-id:".length)
+    : bc.media_url;
   const payload: Record<string, unknown> =
     method === "sendVideo"
-      ? { chat_id: chatId, video: bc.media_url, caption: bc.body, supports_streaming: true, reply_markup }
+      ? { chat_id: chatId, video: mediaReference, caption: bc.body, supports_streaming: true, reply_markup }
       : method === "sendPhoto"
-        ? { chat_id: chatId, photo: bc.media_url, caption: bc.body, reply_markup }
+        ? { chat_id: chatId, photo: mediaReference, caption: bc.body, reply_markup }
         : { chat_id: chatId, text: bc.body, reply_markup, disable_web_page_preview: true };
 
   try {
