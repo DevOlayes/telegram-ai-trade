@@ -26,7 +26,6 @@ import {
   getAdminOverview,
   listBroadcastRecipients,
   listBroadcasts,
-  listBroadcastMedia,
 
   previewBroadcastAudience,
   setUserStatus,
@@ -383,8 +382,7 @@ function BroadcastTab() {
   const qc = useQueryClient();
   const [audience, setAudience] = useState<string>("abandoned_withdrawals");
   const [days, setDays] = useState(7);
-  const [mediaId, setMediaId] = useState<string>("withdraw-recovery");
-  const [mediaPath, setMediaPath] = useState("");
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [body, setBody] = useState(RECOVERY_BODY);
@@ -398,30 +396,14 @@ function BroadcastTab() {
     retry: false,
     refetchInterval: 15000,
   });
-  const library = useQuery({ queryKey: ["broadcast-media"], queryFn: () => listBroadcastMedia(), retry: false });
-
-  async function uploadMedia(file: File) {
+  function selectMedia(file: File) {
     setUploadError("");
-    if (!["image/jpeg", "image/png", "image/webp", "video/mp4"].includes(file.type) || file.size > 80 * 1024 * 1024) {
-      setUploadError("Choose a JPG, PNG, WebP, or MP4 file up to 80 MB.");
+    if (!["image/jpeg", "image/png", "image/webp", "video/mp4"].includes(file.type) || file.size > 49 * 1024 * 1024) {
+      setMediaFile(null);
+      setUploadError("Choose a JPG, PNG, WebP, or MP4 file smaller than 49 MB.");
       return;
     }
-    setUploading(true);
-    try {
-      const form = new FormData();
-      form.set("file", file);
-      const response = await fetch("/api/admin/media", { method: "POST", body: form, credentials: "same-origin" });
-      const result = await response.json() as { path?: string; error?: string };
-      if (!response.ok || !result.path) throw new Error(result.error ?? "Upload failed");
-      const path = result.path;
-      await qc.invalidateQueries({ queryKey: ["broadcast-media"] });
-      setMediaPath(path);
-      setMediaId("none");
-    } catch (error) {
-      setUploadError(error instanceof Error ? error.message : "Upload failed");
-    } finally {
-      setUploading(false);
-    }
+    setMediaFile(file);
   }
 
   const preview = useMutation({
@@ -432,17 +414,31 @@ function BroadcastTab() {
   });
 
   const send = useMutation({
-    mutationFn: () =>
-      createBroadcast({
+    mutationFn: async () => {
+      if (mediaFile) {
+        const form = new FormData();
+        form.set("file", mediaFile);
+        form.set("body", body);
+        form.set("audience", audience);
+        form.set("action", action);
+        form.set("actionText", actionText || "OPEN");
+        if (audience === "inactive") form.set("days", String(days));
+        const response = await fetch("/api/admin/broadcast-upload", { method: "POST", body: form, credentials: "same-origin" });
+        const result = await response.json() as { id?: string; total?: number; sent?: number; error?: string };
+        if (!response.ok || !result.id) throw new Error(result.error ?? "Broadcast upload failed");
+        setMediaFile(null);
+        return { id: result.id, total: result.total ?? 0, initialSent: result.sent ?? 0 };
+      }
+      return createBroadcast({
         data: {
           body,
-          mediaId,
-          ...(mediaPath ? { mediaPath } : {}),
+          mediaId: "none",
           audience: audience as never,
           buttons: action ? [{ text: actionText || "OPEN", action }] : [],
           ...(audience === "inactive" ? { days } : {}),
         },
-      }),
+      });
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-broadcasts"] }),
   });
 
@@ -479,31 +475,14 @@ function BroadcastTab() {
               </Field>
             )}
 
-            <Field label="Media">
-              <select className={inputCls} value={mediaPath || mediaId} onChange={(e) => {
-                const value = e.target.value;
-                if (value.includes("/image/") || value.includes("/video/")) { setMediaPath(value); setMediaId("none"); }
-                else { setMediaPath(""); setMediaId(value); }
-              }}>
-                {MEDIA_OPTIONS.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
-                {(library.data ?? []).map((m) => <option key={m.path} value={m.path}>{m.type === "video" ? "Video" : "Image"} · {m.name}</option>)}
-              </select>
-              <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm text-primary">
-                <Upload className="h-4 w-4" /> {uploading ? "Uploading…" : "Upload image or video"}
-                <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4" disabled={uploading} className="sr-only" onChange={(e) => { const file = e.target.files?.[0]; if (file) void uploadMedia(file); e.target.value = ""; }} />
+            <Field label="Media (optional)">
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-primary">
+                <Upload className="h-4 w-4" /> Choose a fresh image or video
+                <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4" disabled={send.isPending} className="sr-only" onChange={(e) => { const file = e.target.files?.[0]; if (file) selectMedia(file); e.target.value = ""; }} />
               </label>
-              <p className="mt-1 text-xs text-muted-foreground">JPG, PNG, WebP or MP4 · up to 80 MB</p>
+              <p className="mt-1 text-xs text-muted-foreground">JPG, PNG, WebP or MP4 · smaller than 49 MB. Files are sent directly to Telegram and are not saved to our media library. Select a new file for each media broadcast.</p>
+              {mediaFile && <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-border p-3 text-sm"><span className="min-w-0 truncate">{mediaFile.name} · {(mediaFile.size / (1024 * 1024)).toFixed(1)} MB</span><button type="button" className="text-destructive" onClick={() => setMediaFile(null)}>Remove</button></div>}
               {uploadError && <p className="mt-1 text-sm text-destructive" role="alert">{uploadError}</p>}
-              {library.error && <p className="mt-1 text-sm text-destructive" role="alert">Could not load uploads: {(library.error as Error).message}</p>}
-              {mediaPath && (library.data ?? []).find((m) => m.path === mediaPath)?.previewUrl && (
-                mediaPath.includes("/video/")
-                  ? <video className="mt-3 max-h-56 w-full object-contain" src={library.data?.find((m) => m.path === mediaPath)?.previewUrl} controls />
-                  : <img className="mt-3 max-h-56 w-full object-contain" src={library.data?.find((m) => m.path === mediaPath)?.previewUrl} alt="Selected broadcast image" />
-              )}
             </Field>
 
             <Field label="Button">
@@ -567,7 +546,7 @@ function BroadcastTab() {
           onClick={() => {
             if (confirm("Send this broadcast now?")) send.mutate();
           }}
-           disabled={send.isPending || uploading || !body.trim() || (Boolean(mediaPath) && !library.data?.some((m) => m.path === mediaPath))}
+           disabled={send.isPending || uploading || !body.trim()}
           className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
         >
           <Send className="h-4 w-4" />
@@ -575,7 +554,7 @@ function BroadcastTab() {
         </button>
         {send.data && (
           <span className="text-sm text-muted-foreground">
-            Queued for {send.data.total} user(s) — delivery runs in the background.
+            {mediaFile ? "Media broadcast queued" : "Broadcast queued"} for {send.data.total} user(s) — delivery runs in the background.
           </span>
         )}
         {(send.error || preview.error) && (
