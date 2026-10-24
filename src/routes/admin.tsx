@@ -375,7 +375,7 @@ You can restart your withdrawal right now:
 
 function BroadcastTab() {
   const qc = useQueryClient();
-  const [audience, setAudience] = useState<string>("abandoned_withdrawals");
+  const [audience, setAudience] = useState<string>("all");
   const [days, setDays] = useState(7);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState("");
@@ -451,7 +451,7 @@ function BroadcastTab() {
           </h3>
           <div className="space-y-4">
             <Field label="Audience">
-              <select className={inputCls} value={audience} onChange={(e) => setAudience(e.target.value)}>
+              <select className={inputCls} value={audience} onChange={(e) => { setAudience(e.target.value); preview.reset(); }}>
                 {AUDIENCE_OPTIONS.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.label}
@@ -536,7 +536,7 @@ function BroadcastTab() {
         </button>
         {preview.data && (
           <span className="text-sm text-muted-foreground">
-            {preview.data.count} recipient(s)
+            {preview.data.count} recipient(s) in this audience
           </span>
         )}
         <button
@@ -560,6 +560,30 @@ function BroadcastTab() {
           </span>
         )}
       </div>
+
+      {preview.data && (
+        <div className="rounded-xl border border-border bg-card/40 p-4">
+          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Recipient preview
+          </h2>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Showing the registered bot users included in the selected audience. Blocked accounts are excluded.
+          </p>
+          {preview.data.users.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No registered users match this audience.</p>
+          ) : (
+            <Table head={["Telegram ID", "Username", "User record"]}>
+              {preview.data.users.map((user) => (
+                <tr key={user.id} className="border-t border-border transition-colors hover:bg-accent/40">
+                  <Td className="tabular-nums">{user.telegram_id}</Td>
+                  <Td>{user.username ? `@${user.username}` : "No username set"}</Td>
+                  <Td className="font-mono text-xs">{user.id}</Td>
+                </tr>
+              ))}
+            </Table>
+          )}
+        </div>
+      )}
 
       <div>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
