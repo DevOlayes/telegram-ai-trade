@@ -392,9 +392,11 @@ function BroadcastTab() {
   });
   function selectMedia(file: File) {
     setUploadError("");
-    if (!["image/jpeg", "image/png", "image/webp", "video/mp4"].includes(file.type) || file.size > 49 * 1024 * 1024) {
+    const isVideo = file.type === "video/mp4";
+    const sizeLimit = isVideo ? 49 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (!["image/jpeg", "image/png", "image/webp", "video/mp4"].includes(file.type) || file.size > sizeLimit) {
       setMediaFile(null);
-      setUploadError("Choose a JPG, PNG, WebP, or MP4 file smaller than 49 MB.");
+      setUploadError("Choose a JPG, PNG, or WebP image up to 10 MB, or an MP4 video smaller than 49 MB.");
       return;
     }
     setMediaFile(file);
@@ -475,7 +477,7 @@ function BroadcastTab() {
                 <Upload className="h-4 w-4" /> Choose a fresh image or video
                 <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4" disabled={send.isPending} className="sr-only" onChange={(e) => { const file = e.target.files?.[0]; if (file) selectMedia(file); e.target.value = ""; }} />
               </label>
-              <p className="mt-1 text-xs text-muted-foreground">JPG, PNG, WebP or MP4 · smaller than 49 MB. Files are sent directly to Telegram and are not saved to our media library. Select a new file for each media broadcast.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Images up to 10 MB; MP4 videos smaller than 49 MB. Files are sent directly to Telegram and are not saved to our media library. Select a new file for each media broadcast.</p>
               {mediaFile && <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-border p-3 text-sm"><span className="min-w-0 truncate">{mediaFile.name} · {(mediaFile.size / (1024 * 1024)).toFixed(1)} MB</span><button type="button" className="text-destructive" onClick={() => setMediaFile(null)}>Remove</button></div>}
               {uploadError && <p className="mt-1 text-sm text-destructive" role="alert">{uploadError}</p>}
             </Field>
