@@ -423,7 +423,7 @@ function BroadcastTab() {
         setMediaFile(null);
         return { id: result.id, total: result.total ?? 0, initialSent: result.sent ?? 0 };
       }
-      return createBroadcast({
+      const result = await createBroadcast({
         data: {
           body,
           mediaId: "none",
@@ -432,6 +432,7 @@ function BroadcastTab() {
           ...(audience === "inactive" ? { days } : {}),
         },
       });
+      return { ...result, initialSent: 0 };
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-broadcasts"] }),
   });
