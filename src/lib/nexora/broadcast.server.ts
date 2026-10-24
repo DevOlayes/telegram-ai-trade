@@ -54,10 +54,14 @@ async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<{ da
 }
 
 async function activeUsers(): Promise<Recipient[]> {
-  const data = await fetchAll<{ id: string; telegram_id: number }>((a, b) =>
-    db().from("users").select("id,telegram_id").neq("status", "blocked").order("id").range(a, b) as never,
+  // Do not use SQL "status != blocked" here: SQLite excludes NULL statuses from
+  // that comparison, which can silently produce an empty audience for existing users.
+  const data = await fetchAll<{ id: string; telegram_id: number | string | null; status?: string | null }>((a, b) =>
+    db().from("users").select("id,telegram_id,status").order("id").range(a, b) as never,
   );
-  return data.map((u) => ({ user_id: u.id, telegram_id: Number(u.telegram_id) }));
+  return data
+    .filter((u) => u.status !== "blocked" && u.telegram_id !== null && u.telegram_id !== undefined && Number.isSafeInteger(Number(u.telegram_id)) && Number(u.telegram_id) > 0)
+    .map((u) => ({ user_id: u.id, telegram_id: Number(u.telegram_id) }));
 }
 
 /** Resolve the list of telegram recipients for an audience. */
