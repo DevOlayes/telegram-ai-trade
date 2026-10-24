@@ -540,7 +540,7 @@ function BroadcastTab() {
           onClick={() => {
             if (confirm("Send this broadcast now?")) send.mutate();
           }}
-           disabled={send.isPending || uploading || !body.trim()}
+           disabled={send.isPending || !body.trim()}
           className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
         >
           <Send className="h-4 w-4" />
@@ -548,7 +548,7 @@ function BroadcastTab() {
         </button>
         {send.data && (
           <span className="text-sm text-muted-foreground">
-            {mediaFile ? "Media broadcast queued" : "Broadcast queued"} for {send.data.total} user(s) — delivery runs in the background.
+            {send.data.initialSent ? "Media broadcast started" : "Broadcast queued"} for {send.data.total} user(s) — delivery runs in the background.
           </span>
         )}
         {(send.error || preview.error) && (
