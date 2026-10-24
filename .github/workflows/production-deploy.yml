@@ -1,0 +1,44 @@
+name: Production Worker Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "public/**"
+      - "migrations/**"
+      - "package.json"
+      - "bun.lock"
+      - "vite.config.*"
+      - "wrangler.jsonc"
+      - ".github/workflows/production-deploy.yml"
+
+concurrency:
+  group: telegram-ai-trade-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Build application
+        run: bun run build
+      - name: Type-check application
+        run: bunx tsc --noEmit
+      - name: Deploy directly to Cloudflare production
+        run: bun run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: "459a45d4f74448c2fccbb241e5e96940"
