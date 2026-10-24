@@ -30,10 +30,11 @@ export const Route = createFileRoute("/api/admin/broadcast-upload")({
 
         if (!(file instanceof File)) return Response.json({ error: "Choose a new image or video for this broadcast" }, { status: 400 });
         if (!body || body.length > 4000) return Response.json({ error: "Message must be between 1 and 4000 characters" }, { status: 400 });
-        if (file.size < 1 || file.size > MAX_UPLOAD_SIZE) return Response.json({ error: "Telegram direct uploads must be smaller than 49 MB" }, { status: 413 });
+        if (file.size < 1 || file.size > MAX_UPLOAD_SIZE) return Response.json({ error: "Telegram video uploads must be smaller than 49 MB" }, { status: 413 });
         const spec = TYPES[file.type];
         const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
         if (!spec || !spec.extensions.includes(extension)) return Response.json({ error: "Only matching JPG, PNG, WebP, or MP4 files are supported" }, { status: 415 });
+        if (spec.mediaType === "photo" && file.size > 10 * 1024 * 1024) return Response.json({ error: "Telegram photo uploads must be 10 MB or smaller. For larger media, use an MP4 video." }, { status: 413 });
         if (!["all", "active", "inactive", "depositors", "withdrawers", "abandoned_withdrawals", "has_profit", "never_traded"].includes(audience)) {
           return Response.json({ error: "Unsupported audience" }, { status: 400 });
         }
@@ -104,17 +105,23 @@ export const Route = createFileRoute("/api/admin/broadcast-upload")({
           return Response.json({ error: "Telegram sent the first message, but the broadcast record could not be created. Check broadcast history before retrying." }, { status: 500 });
         }
 
-        const recipientRows = recipients.map((recipient, index) => ({
-          broadcast_id: broadcast.id,
-          user_id: recipient.user_id,
-          telegram_id: recipient.telegram_id,
-          status: index === 0 ? "sent" : "pending",
-          ...(index === 0 ? { sent_at: new Date().toISOString() } : {}),
-        }));
-        const { error: recipientsError } = await db().from("broadcast_recipients").upsert(recipientRows, { onConflict: "broadcast_id,user_id" });
-        if (recipientsError) {
-          console.error("Could not record broadcast recipients", recipientsError);
-          return Response.json({ error: "First media message was sent, but recipients could not be queued. Check broadcast history before retrying." }, { status: 500 });
+        const sentAt = new Date().toISOString();
+        for (let i = 0; i < recipients.length; i += 500) {
+          const recipientRows = recipients.slice(i, i + 500).map((recipient, offset) => {
+            const index = i + offset;
+            return {
+              broadcast_id: broadcast.id,
+              user_id: recipient.user_id,
+              telegram_id: recipient.telegram_id,
+              status: index === 0 ? "sent" : "pending",
+              ...(index === 0 ? { sent_at: sentAt } : {}),
+            };
+          });
+          const { error: recipientsError } = await db().from("broadcast_recipients").upsert(recipientRows, { onConflict: "broadcast_id,user_id" });
+          if (recipientsError) {
+            console.error("Could not record broadcast recipients", recipientsError);
+            return Response.json({ error: "First media message was sent, but recipients could not be queued. Check broadcast history before retrying." }, { status: 500 });
+          }
         }
 
         return Response.json({ id: broadcast.id, total: recipients.length, sent: 1 }, { headers: { "Cache-Control": "no-store" } });
