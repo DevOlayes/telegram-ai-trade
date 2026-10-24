@@ -9,6 +9,8 @@ const TYPES: Record<string, string[]> = {
   "video/mp4": ["mp4"],
 };
 
+const MAX_MEDIA_SIZE = 80 * 1024 * 1024;
+
 export const Route = createFileRoute("/api/admin/media")({
   server: {
     handlers: {
@@ -18,7 +20,7 @@ export const Route = createFileRoute("/api/admin/media")({
         try { form = await request.formData(); } catch { return Response.json({ error: "Invalid upload form" }, { status: 400 }); }
         const file = form.get("file");
         if (!(file instanceof File)) return Response.json({ error: "Choose a file to upload" }, { status: 400 });
-        if (file.size < 1 || file.size > 20 * 1024 * 1024) return Response.json({ error: "File must be under 20 MB" }, { status: 413 });
+        if (file.size < 1 || file.size > MAX_MEDIA_SIZE) return Response.json({ error: "File must be 80 MB or smaller" }, { status: 413 });
         const extensions = TYPES[file.type];
         const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
         if (!extensions || !extensions.includes(extension)) return Response.json({ error: "Only matching JPG, PNG, WebP, or MP4 files are allowed" }, { status: 415 });
