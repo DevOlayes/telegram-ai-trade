@@ -244,8 +244,33 @@ export const previewBroadcastAudience = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     await assertAdmin(context as never);
     const { resolveAudience } = await import("@/lib/nexora/broadcast.server");
+    const { db } = await import("@/lib/nexora/core.server");
     const recipients = await resolveAudience(data.audience, data.days ? { days: data.days } : {});
-    return { count: recipients.length };
+    const recipientIds = new Set(recipients.map((recipient) => recipient.user_id));
+    const users: { id: string; username: string | null; telegram_id: number | string }[] = [];
+    const pageSize = 1000;
+    for (let from = 0; ; from += pageSize) {
+      const { data: page, error } = await db()
+        .from("users")
+        .select("id,username,telegram_id")
+        .order("id")
+        .range(from, from + pageSize - 1);
+      if (error) throw new Error(error.message ?? "Could not load broadcast recipients");
+      for (const user of page ?? []) {
+        if (recipientIds.has(user.id)) {
+          users.push({
+            id: user.id,
+            username: user.username ?? null,
+            telegram_id: user.telegram_id,
+          });
+        }
+      }
+      if (!page || page.length < pageSize) break;
+    }
+    return {
+      count: recipients.length,
+      users: users.sort((a, b) => Number(a.telegram_id) - Number(b.telegram_id)),
+    };
   });
 
 export const listBroadcastMedia = createServerFn({ method: "GET" })
