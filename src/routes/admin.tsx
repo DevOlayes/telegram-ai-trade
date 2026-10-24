@@ -402,8 +402,8 @@ function BroadcastTab() {
 
   async function uploadMedia(file: File) {
     setUploadError("");
-    if (!["image/jpeg", "image/png", "image/webp", "video/mp4"].includes(file.type) || file.size > 20 * 1024 * 1024) {
-      setUploadError("Choose a JPG, PNG, WebP, or MP4 under 20 MB.");
+    if (!["image/jpeg", "image/png", "image/webp", "video/mp4"].includes(file.type) || file.size > 80 * 1024 * 1024) {
+      setUploadError("Choose a JPG, PNG, WebP, or MP4 file up to 80 MB.");
       return;
     }
     setUploading(true);
@@ -496,7 +496,7 @@ function BroadcastTab() {
                 <Upload className="h-4 w-4" /> {uploading ? "Uploading…" : "Upload image or video"}
                 <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4" disabled={uploading} className="sr-only" onChange={(e) => { const file = e.target.files?.[0]; if (file) void uploadMedia(file); e.target.value = ""; }} />
               </label>
-              <p className="mt-1 text-xs text-muted-foreground">JPG, PNG, WebP or MP4 · up to 20 MB</p>
+              <p className="mt-1 text-xs text-muted-foreground">JPG, PNG, WebP or MP4 · up to 80 MB</p>
               {uploadError && <p className="mt-1 text-sm text-destructive" role="alert">{uploadError}</p>}
               {library.error && <p className="mt-1 text-sm text-destructive" role="alert">Could not load uploads: {(library.error as Error).message}</p>}
               {mediaPath && (library.data ?? []).find((m) => m.path === mediaPath)?.previewUrl && (
