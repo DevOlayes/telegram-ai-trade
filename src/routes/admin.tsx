@@ -351,11 +351,6 @@ const AUDIENCE_OPTIONS = [
   { id: "inactive", label: "Inactive (no trade in N days)" },
 ] as const;
 
-const MEDIA_OPTIONS = [
-  { id: "none", label: "No media" },
-  { id: "withdraw-recovery", label: "Withdrawal recovery video" },
-] as const;
-
 const ACTION_OPTIONS = [
   { id: "", label: "No button" },
   { id: "wd", label: "💸 WITHDRAW NOW" },
@@ -383,7 +378,6 @@ function BroadcastTab() {
   const [audience, setAudience] = useState<string>("abandoned_withdrawals");
   const [days, setDays] = useState(7);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [body, setBody] = useState(RECOVERY_BODY);
   const [action, setAction] = useState<string>("wd");
