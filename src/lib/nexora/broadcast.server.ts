@@ -199,10 +199,35 @@ async function sendOne(
       parameters?: { retry_after?: number };
     };
     if (json.ok) return { ok: true };
+
+    // A broken/expired media URL must not prevent delivery of the announcement.
+    if ((method === "sendPhoto" || method === "sendVideo") && json.error_code !== 403) {
+      try {
+        const fallback = await fetch(
+          `https://api.telegram.org/bot${process.env["TELEGRAM_BOT_TOKEN"]}/sendMessage`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, text: bc.body, reply_markup, disable_web_page_preview: true }),
+          },
+        );
+        const fallbackJson = (await fallback.json()) as { ok: boolean; description?: string; error_code?: number; parameters?: { retry_after?: number } };
+        if (fallbackJson.ok) return { ok: true };
+        return {
+          ok: false,
+          error: `Media failed (${json.description ?? "unknown"}); text fallback failed (${fallbackJson.description ?? "unknown"})`,
+          blocked: fallbackJson.error_code === 403,
+          ...(fallbackJson.parameters?.retry_after ? { retryAfter: fallbackJson.parameters.retry_after } : {}),
+        };
+      } catch (e) {
+        return { ok: false, error: `Media failed (${json.description ?? "unknown"}); text fallback error (${String(e)})`, blocked: false };
+      }
+    }
+
     return {
       ok: false,
       error: json.description ?? "unknown",
-      blocked: json.error_code === 403 || json.error_code === 400,
+      blocked: json.error_code === 403,
       ...(json.parameters?.retry_after ? { retryAfter: json.parameters.retry_after } : {}),
     };
   } catch (e) {
@@ -236,8 +261,10 @@ export async function drainBroadcasts(limit = 200) {
       try {
         bc.media_url = await signedBroadcastMediaUrl(bc.media_url.slice("broadcast-media:".length), 3600);
       } catch (error) {
-        console.error("Broadcast media unavailable", error);
-        continue;
+        // Do not strand the broadcast if signing fails; send the text instead.
+        console.error("Broadcast media unavailable; falling back to text", error);
+        bc.media_url = null;
+        bc.media_type = "text";
       }
     }
     const { data: pending } = await db()
