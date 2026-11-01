@@ -13,6 +13,10 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ShareRouteImport } from './routes/share'
+import { Route as AdminAnalyticsRouteImport } from './routes/admin.analytics'
+import { Route as ApiAdminBroadcastUploadRouteImport } from './routes/api/admin/broadcast-upload'
+import { Route as ApiAdminMediaRouteImport } from './routes/api/admin/media'
+import { Route as ApiPublicMediaRouteImport } from './routes/api/public/media'
 import { Route as ApiPublicNexoraTickRouteImport } from './routes/api/public/nexora/tick'
 import { Route as ApiPublicTelegramAnnounceRouteImport } from './routes/api/public/telegram/announce'
 import { Route as ApiPublicTelegramWebhookRouteImport } from './routes/api/public/telegram/webhook'
@@ -37,6 +41,26 @@ const ShareRoute = ShareRouteImport.update({
   path: '/share',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminAnalyticsRoute = AdminAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => AdminRoute,
+} as any)
+const ApiAdminBroadcastUploadRoute = ApiAdminBroadcastUploadRouteImport.update({
+  id: '/api/admin/broadcast-upload',
+  path: '/api/admin/broadcast-upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminMediaRoute = ApiAdminMediaRouteImport.update({
+  id: '/api/admin/media',
+  path: '/api/admin/media',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicMediaRoute = ApiPublicMediaRouteImport.update({
+  id: '/api/public/media',
+  path: '/api/public/media',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicNexoraTickRoute = ApiPublicNexoraTickRouteImport.update({
   id: '/api/public/nexora/tick',
   path: '/api/public/nexora/tick',
@@ -57,18 +81,26 @@ const ApiPublicTelegramWebhookRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
+  '/admin': typeof AdminRouteWithChildren
   '/auth': typeof AuthRoute
   '/share': typeof ShareRoute
+  '/admin/analytics': typeof AdminAnalyticsRoute
+  '/api/admin/broadcast-upload': typeof ApiAdminBroadcastUploadRoute
+  '/api/admin/media': typeof ApiAdminMediaRoute
+  '/api/public/media': typeof ApiPublicMediaRoute
   '/api/public/nexora/tick': typeof ApiPublicNexoraTickRoute
   '/api/public/telegram/announce': typeof ApiPublicTelegramAnnounceRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
+  '/admin': typeof AdminRouteWithChildren
   '/auth': typeof AuthRoute
   '/share': typeof ShareRoute
+  '/admin/analytics': typeof AdminAnalyticsRoute
+  '/api/admin/broadcast-upload': typeof ApiAdminBroadcastUploadRoute
+  '/api/admin/media': typeof ApiAdminMediaRoute
+  '/api/public/media': typeof ApiPublicMediaRoute
   '/api/public/nexora/tick': typeof ApiPublicNexoraTickRoute
   '/api/public/telegram/announce': typeof ApiPublicTelegramAnnounceRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
@@ -76,9 +108,13 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
+  '/admin': typeof AdminRouteWithChildren
   '/auth': typeof AuthRoute
   '/share': typeof ShareRoute
+  '/admin/analytics': typeof AdminAnalyticsRoute
+  '/api/admin/broadcast-upload': typeof ApiAdminBroadcastUploadRoute
+  '/api/admin/media': typeof ApiAdminMediaRoute
+  '/api/public/media': typeof ApiPublicMediaRoute
   '/api/public/nexora/tick': typeof ApiPublicNexoraTickRoute
   '/api/public/telegram/announce': typeof ApiPublicTelegramAnnounceRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
@@ -90,6 +126,10 @@ export interface FileRouteTypes {
     | '/admin'
     | '/auth'
     | '/share'
+    | '/admin/analytics'
+    | '/api/admin/broadcast-upload'
+    | '/api/admin/media'
+    | '/api/public/media'
     | '/api/public/nexora/tick'
     | '/api/public/telegram/announce'
     | '/api/public/telegram/webhook'
@@ -99,6 +139,10 @@ export interface FileRouteTypes {
     | '/admin'
     | '/auth'
     | '/share'
+    | '/admin/analytics'
+    | '/api/admin/broadcast-upload'
+    | '/api/admin/media'
+    | '/api/public/media'
     | '/api/public/nexora/tick'
     | '/api/public/telegram/announce'
     | '/api/public/telegram/webhook'
@@ -108,6 +152,10 @@ export interface FileRouteTypes {
     | '/admin'
     | '/auth'
     | '/share'
+    | '/admin/analytics'
+    | '/api/admin/broadcast-upload'
+    | '/api/admin/media'
+    | '/api/public/media'
     | '/api/public/nexora/tick'
     | '/api/public/telegram/announce'
     | '/api/public/telegram/webhook'
@@ -115,9 +163,12 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AdminRoute: typeof AdminRoute
+  AdminRoute: typeof AdminRouteWithChildren
   AuthRoute: typeof AuthRoute
   ShareRoute: typeof ShareRoute
+  ApiAdminBroadcastUploadRoute: typeof ApiAdminBroadcastUploadRoute
+  ApiAdminMediaRoute: typeof ApiAdminMediaRoute
+  ApiPublicMediaRoute: typeof ApiPublicMediaRoute
   ApiPublicNexoraTickRoute: typeof ApiPublicNexoraTickRoute
   ApiPublicTelegramAnnounceRoute: typeof ApiPublicTelegramAnnounceRoute
   ApiPublicTelegramWebhookRoute: typeof ApiPublicTelegramWebhookRoute
@@ -153,6 +204,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShareRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/analytics': {
+      id: '/admin/analytics'
+      path: '/analytics'
+      fullPath: '/admin/analytics'
+      preLoaderRoute: typeof AdminAnalyticsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/api/admin/broadcast-upload': {
+      id: '/api/admin/broadcast-upload'
+      path: '/api/admin/broadcast-upload'
+      fullPath: '/api/admin/broadcast-upload'
+      preLoaderRoute: typeof ApiAdminBroadcastUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/media': {
+      id: '/api/admin/media'
+      path: '/api/admin/media'
+      fullPath: '/api/admin/media'
+      preLoaderRoute: typeof ApiAdminMediaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/media': {
+      id: '/api/public/media'
+      path: '/api/public/media'
+      fullPath: '/api/public/media'
+      preLoaderRoute: typeof ApiPublicMediaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/nexora/tick': {
       id: '/api/public/nexora/tick'
       path: '/api/public/nexora/tick'
@@ -177,11 +256,24 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AdminRouteChildren {
+  AdminAnalyticsRoute: typeof AdminAnalyticsRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminAnalyticsRoute: AdminAnalyticsRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AdminRoute: AdminRoute,
+  AdminRoute: AdminRouteWithChildren,
   AuthRoute: AuthRoute,
   ShareRoute: ShareRoute,
+  ApiAdminBroadcastUploadRoute: ApiAdminBroadcastUploadRoute,
+  ApiAdminMediaRoute: ApiAdminMediaRoute,
+  ApiPublicMediaRoute: ApiPublicMediaRoute,
   ApiPublicNexoraTickRoute: ApiPublicNexoraTickRoute,
   ApiPublicTelegramAnnounceRoute: ApiPublicTelegramAnnounceRoute,
   ApiPublicTelegramWebhookRoute: ApiPublicTelegramWebhookRoute,
