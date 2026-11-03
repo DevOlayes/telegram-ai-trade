@@ -20,7 +20,9 @@ export default defineConfig({
   plugins: [externalizeCloudflareWorkersModule],
   nitro: {
     preset: "cloudflare-module",
-    plugins: ["./plugins/telegram-scheduled.ts"],
+    // Spread bypasses the wrapper's narrower typing; the scheduled Telegram
+    // plugin is still passed through to Nitro at build time.
+    ...({ plugins: ["./plugins/telegram-scheduled.ts"] } as object),
     output: {
       dir: "dist",
       serverDir: "dist/server",
