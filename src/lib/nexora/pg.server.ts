@@ -5,10 +5,18 @@
 // used for the admin panel and broadcasts, not for live bot settlement.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
+// The generated Database type does not cover every table/column this adapter
+// touches, so query through a loose surface instead of fighting the generics.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LooseSupabase = {
+  from: (table: string) => any;
+  rpc: (name: string, args?: Record<string, unknown>) => PromiseLike<{ data: any; error: any }>;
+};
+
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
 export function pgDb() {
-  const sb = supabaseAdmin;
+  const sb = supabaseAdmin as unknown as LooseSupabase;
 
   async function readBalanceRow(userId: string) {
     const { data, error } = await sb

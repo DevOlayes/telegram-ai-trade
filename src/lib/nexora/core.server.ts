@@ -1,6 +1,7 @@
 // LEXORA core: database access, settings, money math, user/account system.
 // Server-only. Never imported from client code.
 import { d1Db } from "./d1.server";
+import { pgDb } from "./pg.server";
 
 type Db = ReturnType<typeof d1Db>;
 
@@ -10,7 +11,7 @@ export function db(): Db {
     // The Lovable preview has no Cloudflare D1 binding; it reads and writes the
     // Lovable Cloud database instead. Deployed Workers keep using D1.
     const usePg = Boolean(process.env["SUPABASE_SERVICE_ROLE_KEY"] && process.env["LOVABLE_SANDBOX"]);
-    _db = usePg ? (require("./pg.server").pgDb() as unknown as Db) : d1Db();
+    _db = usePg ? (pgDb() as unknown as Db) : d1Db();
   }
   return _db;
 }
