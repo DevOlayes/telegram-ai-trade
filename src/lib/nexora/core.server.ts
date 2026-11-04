@@ -2,9 +2,16 @@
 // Server-only. Never imported from client code.
 import { d1Db } from "./d1.server";
 
-let _db: ReturnType<typeof d1Db> | null = null;
-export function db(): ReturnType<typeof d1Db> {
-  if (!_db) _db = d1Db();
+type Db = ReturnType<typeof d1Db>;
+
+let _db: Db | null = null;
+export function db(): Db {
+  if (!_db) {
+    // The Lovable preview has no Cloudflare D1 binding; it reads and writes the
+    // Lovable Cloud database instead. Deployed Workers keep using D1.
+    const usePg = Boolean(process.env["SUPABASE_SERVICE_ROLE_KEY"] && process.env["LOVABLE_SANDBOX"]);
+    _db = usePg ? (require("./pg.server").pgDb() as unknown as Db) : d1Db();
+  }
   return _db;
 }
 

@@ -3,6 +3,35 @@
 // produce the same Worker bundle and static-asset directory.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
+// Dev-only shim: the sandbox preview cannot load Cloudflare's built-in
+// "cloudflare:workers" module, so we provide `env` backed by process.env plus
+// an in-memory MEDIA KV stub. The production Worker build keeps the real
+// binding because the plugin only applies while serving in dev.
+const cloudflareWorkersDevShim = {
+  name: "cloudflare-workers-dev-shim",
+  enforce: "pre" as const,
+  apply: "serve" as const,
+  resolveId(source: string) {
+    if (source === "cloudflare:workers") return "\0virtual:cloudflare-workers-shim";
+    return null;
+  },
+  load(id: string) {
+    if (id !== "\0virtual:cloudflare-workers-shim") return null;
+    return [
+      "const kvStore = new Map();",
+      "const MEDIA = {",
+      "  async get(key) { return kvStore.has(key) ? kvStore.get(key) : null; },",
+      "  async put(key, value, options) { kvStore.set(key, String(value)); },",
+      "  async delete(key) { kvStore.delete(key); },",
+      "};",
+      "export const env = new Proxy({ MEDIA }, {",
+      "  get(target, prop) { if (prop in target) return target[prop]; return process.env[String(prop)]; },",
+      "});",
+      "export default env;",
+    ].join("\n");
+  },
+};
+
 const externalizeCloudflareWorkersModule = {
   name: "externalize-cloudflare-workers-module",
   enforce: "pre" as const,
@@ -17,7 +46,7 @@ const externalizeCloudflareWorkersModule = {
 };
 
 export default defineConfig({
-  plugins: [externalizeCloudflareWorkersModule],
+  plugins: [cloudflareWorkersDevShim, externalizeCloudflareWorkersModule],
   nitro: {
     preset: "cloudflare-module",
     // Spread bypasses the wrapper's narrower typing; the scheduled Telegram
