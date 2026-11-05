@@ -61,8 +61,8 @@ async function sign(payload: string, secret: string) {
   return toBase64Url(new Uint8Array(await crypto.subtle.sign("HMAC", key, text.encode(payload))));
 }
 export async function loginAdmin(username: string, password: string) {
-  const cfg = config();
-  if (!cfg) throw new Error("Admin login is not configured. Set ADMIN_USERNAME, ADMIN_PASSWORD_HASH, and SESSION_SECRET in Cloudflare.");
+  const cfg = await config();
+  if (!cfg) throw new Error("Admin login is not configured. Set ADMIN_USERNAME, ADMIN_PASSWORD (or ADMIN_PASSWORD_HASH), and SESSION_SECRET.");
   const request = getRequest();
   const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
   const kv = (await import("cloudflare:workers")).env as unknown as { MEDIA?: { get(key: string): Promise<string | null>; put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>; delete(key: string): Promise<void> } };
