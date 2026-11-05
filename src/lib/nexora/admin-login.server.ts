@@ -30,8 +30,9 @@ async function config() {
   // Preview/dev convenience: accept ADMIN_PASSWORD directly and derive the same
   // PBKDF2 record on the fly. Deployed Workers keep using the precomputed hash.
   if (password && password.length >= 10) {
-    const saltText = toBase64Url(text.encode(`lexora-admin-password:${secret}`));
-    const derived = await pbkdf2(password, text.encode(saltText.replace(/-/g, "+").replace(/_/g, "/")), 100000);
+    const rawSalt = `lexora-admin-password:${secret}`;
+    const saltText = toBase64Url(text.encode(rawSalt));
+    const derived = await pbkdf2(password, text.encode(rawSalt), 100000);
     return { username, passwordHash: `pbkdf2-sha256$100000$${saltText}$${derived}`, secret };
   }
   return null;
