@@ -15,12 +15,27 @@ function constantTimeEqual(a: string, b: string) {
   for (let i = 0; i < Math.max(left.length, right.length); i++) mismatch |= (left[i] ?? 0) ^ (right[i] ?? 0);
   return mismatch === 0;
 }
-function config() {
+function pbkdf2(password: string, salt: Uint8Array, iterations: number) {
+  return crypto.subtle.importKey("raw", text.encode(password), "PBKDF2", false, ["deriveBits"]).then((key) =>
+    crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations }, key, 256),
+  ).then((derived) => toBase64Url(new Uint8Array(derived)));
+}
+async function config() {
   const username = process.env["ADMIN_USERNAME"];
   const passwordHash = process.env["ADMIN_PASSWORD_HASH"];
+  const password = process.env["ADMIN_PASSWORD"];
   const secret = process.env["SESSION_SECRET"];
-  if (!username || !passwordHash || !secret || secret.length < 32) return null;
-  return { username, passwordHash, secret };
+  if (!username || !secret || secret.length < 32) return null;
+  if (passwordHash) return { username, passwordHash, secret };
+  // Preview/dev convenience: accept ADMIN_PASSWORD directly and derive the same
+  // PBKDF2 record on the fly. Deployed Workers keep using the precomputed hash.
+  if (password && password.length >= 10) {
+    const rawSalt = `lexora-admin-password:${secret}`;
+    const saltText = toBase64Url(text.encode(rawSalt));
+    const derived = await pbkdf2(password, text.encode(rawSalt), 100000);
+    return { username, passwordHash: `pbkdf2-sha256$100000$${saltText}$${derived}`, secret };
+  }
+  return null;
 }
 async function verifyPassword(password: string, encodedHash: string) {
   const [algorithm, iterationText, saltText, expected] = encodedHash.split("$");
@@ -47,8 +62,8 @@ async function sign(payload: string, secret: string) {
   return toBase64Url(new Uint8Array(await crypto.subtle.sign("HMAC", key, text.encode(payload))));
 }
 export async function loginAdmin(username: string, password: string) {
-  const cfg = config();
-  if (!cfg) throw new Error("Admin login is not configured. Set ADMIN_USERNAME, ADMIN_PASSWORD_HASH, and SESSION_SECRET in Cloudflare.");
+  const cfg = await config();
+  if (!cfg) throw new Error("Admin login is not configured. Set ADMIN_USERNAME, ADMIN_PASSWORD (or ADMIN_PASSWORD_HASH), and SESSION_SECRET.");
   const request = getRequest();
   const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
   const kv = (await import("cloudflare:workers")).env as unknown as { MEDIA?: { get(key: string): Promise<string | null>; put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>; delete(key: string): Promise<void> } };
