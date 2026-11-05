@@ -27,7 +27,7 @@ export async function verifyAdminRequest() {
   const username = process.env["ADMIN_USERNAME"];
   const secret = process.env["SESSION_SECRET"];
   const passwordHash = process.env["ADMIN_PASSWORD_HASH"];
-  if (!username || !secret || secret.length < 32 || !passwordHash) return false;
+  if (!username || !secret || secret.length < 32 || (!passwordHash && !process.env["ADMIN_PASSWORD"])) return false;
   const cookie = getRequestHeader("cookie") ?? "";
   let token: string | null = null;
   for (const part of cookie.split(/;\s*/)) {

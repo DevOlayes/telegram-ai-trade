@@ -23,7 +23,7 @@ function constantTimeEqual(a: string, b: string) {
 function config() {
   const username = process.env["ADMIN_USERNAME"];
   const secret = process.env["SESSION_SECRET"];
-  if (!username || !process.env["ADMIN_PASSWORD_HASH"] || !secret || secret.length < 32) return null;
+  if (!username || (!process.env["ADMIN_PASSWORD_HASH"] && !process.env["ADMIN_PASSWORD"]) || !secret || secret.length < 32) return null;
   return { username, secret };
 }
 async function sign(payload: string, secret: string) {
