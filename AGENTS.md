@@ -11,3 +11,4 @@
 
 - Broadcast uploads live in private `broadcast-media` storage; admin-only signed uploads and short-lived delivery URLs keep files reusable without opening public storage.
 - Promotional credit expiry is stored per user and enforced by a database function on balance reads and scheduled ticks, so unused credit expires without touching deposits or trade results.
+- Admin exports use authenticated server downloads and include only fields needed for the requested data transfer.

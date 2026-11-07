@@ -7,6 +7,7 @@ import {
   Check,
   Clock,
   Coins,
+  Download,
   Eye,
   EyeOff,
   Landmark,
@@ -145,6 +146,16 @@ function AdminPage() {
             className="w-72 rounded-lg border border-border bg-card py-2 pl-9 pr-3 text-sm outline-none focus:border-ring"
           />
         </div>
+      )}
+      {tab === "users" && (
+        <a
+          href="/api/admin/subscribers"
+          download
+          className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm hover:bg-accent"
+        >
+          <Download className="h-4 w-4" />
+          Download subscriber CSV
+        </a>
       )}
       <Link to="/admin/analytics" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm hover:bg-accent">Analytics</Link>
       <span className="ml-auto text-xs text-muted-foreground">
