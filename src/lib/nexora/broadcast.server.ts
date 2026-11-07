@@ -276,37 +276,46 @@ export async function drainBroadcasts(limit = 200) {
     }
     const { data: pending } = await db()
       .from("broadcast_recipients")
-      .select("id,telegram_id")
+      .select("id,user_id,telegram_id")
       .eq("broadcast_id", bc.id)
       .eq("status", "pending")
       .limit(budget);
 
     for (const r of pending ?? []) {
       budget--;
-      const result = await sendOne(Number(r.telegram_id), bc as never);
+      let result = await sendOne(Number(r.telegram_id), bc as never);
       if (!result.ok && result.retryAfter) {
         await sleep(Math.min(result.retryAfter, 10) * 1000);
-        const retry = await sendOne(Number(r.telegram_id), bc as never);
-        if (retry.ok) {
-          await db()
-            .from("broadcast_recipients")
-            .update({ status: "sent", sent_at: new Date().toISOString() })
-            .eq("id", r.id);
-          sent++;
-          continue;
-        }
+        result = await sendOne(Number(r.telegram_id), bc as never);
       }
+
       if (result.ok) {
         await db()
           .from("broadcast_recipients")
-          .update({ status: "sent", sent_at: new Date().toISOString() })
+          .update({ status: "sent", sent_at: new Date().toISOString(), error: null })
           .eq("id", r.id);
         sent++;
       } else {
+        // Telegram 403 means this chat can no longer receive bot messages.
+        // Persist that state on the user as well as this recipient record so
+        // future "All users" broadcasts exclude the account before sending.
         await db()
           .from("broadcast_recipients")
           .update({ status: result.blocked ? "blocked" : "failed", error: result.error })
           .eq("id", r.id);
+
+        if (result.blocked) {
+          const { error: userUpdateError } = await db()
+            .from("users")
+            .update({ status: "blocked" })
+            .eq("id", r.user_id);
+          if (userUpdateError) {
+            console.error("Could not mark Telegram-blocked user", {
+              userId: r.user_id,
+              error: userUpdateError.message,
+            });
+          }
+        }
         failed++;
       }
       await sleep(40); // ~25 messages/second, within Telegram's broadcast limit
