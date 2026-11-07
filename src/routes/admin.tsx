@@ -23,7 +23,6 @@ import {
   X,
 } from "lucide-react";
 import {
-  createBroadcast,
   getAdminOverview,
   listBroadcastRecipients,
   listBroadcasts,
@@ -436,16 +435,20 @@ function BroadcastTab() {
         setMediaFile(null);
         return { id: result.id, total: result.total ?? 0, initialSent: result.sent ?? 0 };
       }
-      const result = await createBroadcast({
-        data: {
+      const response = await fetch("/api/admin/broadcast-create", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           body,
-          mediaId: "none",
-          audience: audience as never,
+          audience,
           buttons: action ? [{ text: actionText || "OPEN", action }] : [],
           ...(audience === "inactive" ? { days } : {}),
-        },
+        }),
       });
-      return { ...result, initialSent: 0 };
+      const result = await response.json() as { id?: string; total?: number; error?: string };
+      if (!response.ok || !result.id) throw new Error(result.error ?? "Broadcast could not be queued");
+      return { id: result.id, total: result.total ?? 0, initialSent: 0 };
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-broadcasts"] }),
   });
