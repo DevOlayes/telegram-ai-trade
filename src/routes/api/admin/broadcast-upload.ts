@@ -47,40 +47,78 @@ export const Route = createFileRoute("/api/admin/broadcast-upload")({
         const token = process.env["TELEGRAM_BOT_TOKEN"];
         if (!token) return Response.json({ error: "Telegram bot is not configured" }, { status: 500 });
 
-        // Telegram stores the uploaded media and returns a reusable file_id. We keep only that
-        // identifier in our broadcast record, never the file bytes or a media-library object.
-        // The first recipient bootstraps the file_id and receives the actual broadcast once.
-        const first = recipients[0]!;
-        const telegramForm = new FormData();
-        telegramForm.set("chat_id", String(first.telegram_id));
-        telegramForm.set(spec.field, file, file.name);
-        telegramForm.set("caption", body);
-        if (spec.mediaType === "video") telegramForm.set("supports_streaming", "true");
-        if (action) telegramForm.set("reply_markup", JSON.stringify({ inline_keyboard: [[{ text: actionText || "OPEN", callback_data: action }]] }));
+        // A single unavailable chat must never abort the entire broadcast.
+        // Telegram's sendVideo/sendPhoto call also delivers to the bootstrap chat,
+        // so walk the audience until one chat accepts the media file.
+        let acceptedIndex = -1;
+        let fileId = "";
+        let lastTelegramError = "No recipient accepted the uploaded media.";
+        const attemptedFailures = new Map<number, { status: "failed" | "blocked"; error: string }>();
+        const isActuallyBlocked = (description: string) =>
+          /bot was blocked by the user|user is deactivated|bot was kicked/i.test(description);
 
-        let telegramResult: {
-          ok: boolean;
-          description?: string;
-          result?: { photo?: { file_id: string }[]; video?: { file_id: string } };
-        };
-        try {
-          const response = await fetch(`https://api.telegram.org/bot${token}/${spec.mediaType === "video" ? "sendVideo" : "sendPhoto"}`, {
-            method: "POST",
-            body: telegramForm,
-          });
-          telegramResult = await response.json() as typeof telegramResult;
-        } catch (error) {
-          console.error("Telegram media bootstrap failed", error);
-          return Response.json({ error: "Could not send the uploaded media to Telegram. No broadcast was queued." }, { status: 502 });
+        for (let index = 0; index < recipients.length; index++) {
+          const recipient = recipients[index]!;
+          const telegramForm = new FormData();
+          telegramForm.set("chat_id", String(recipient.telegram_id));
+          telegramForm.set(spec.field, file, file.name);
+          telegramForm.set("caption", body);
+          if (spec.mediaType === "video") telegramForm.set("supports_streaming", "true");
+          if (action) telegramForm.set("reply_markup", JSON.stringify({ inline_keyboard: [[{ text: actionText || "OPEN", callback_data: action }]] }));
+
+          let telegramResult: {
+            ok: boolean;
+            description?: string;
+            error_code?: number;
+            result?: { photo?: { file_id: string }[]; video?: { file_id: string } };
+          };
+          try {
+            const response = await fetch(`https://api.telegram.org/bot${token}/${spec.mediaType === "video" ? "sendVideo" : "sendPhoto"}`, {
+              method: "POST",
+              body: telegramForm,
+            });
+            telegramResult = await response.json() as typeof telegramResult;
+          } catch (error) {
+            console.error("Telegram media bootstrap failed", error);
+            return Response.json({ error: "Could not connect to Telegram to upload the media. No broadcast was queued." }, { status: 502 });
+          }
+
+          if (telegramResult.ok && telegramResult.result) {
+            const candidateFileId = spec.mediaType === "video"
+              ? telegramResult.result.video?.file_id
+              : telegramResult.result.photo?.at(-1)?.file_id;
+            if (!candidateFileId) {
+              return Response.json({ error: "Telegram accepted the media but did not return a reusable media ID." }, { status: 502 });
+            }
+            acceptedIndex = index;
+            fileId = candidateFileId;
+            break;
+          }
+
+          lastTelegramError = telegramResult.description ?? "Telegram rejected the uploaded media.";
+          if (telegramResult.error_code === 403) {
+            const blocked = isActuallyBlocked(lastTelegramError);
+            attemptedFailures.set(index, {
+              status: blocked ? "blocked" : "failed",
+              error: lastTelegramError,
+            });
+            if (blocked) {
+              const { error: userUpdateError } = await db().from("users")
+                .update({ status: "blocked" }).eq("id", recipient.user_id);
+              if (userUpdateError) console.error("Could not mark unavailable Telegram user", userUpdateError);
+            }
+            // This error belongs to this chat. Continue with the next registered user.
+            continue;
+          }
+
+          // A bad media payload/format or Telegram-side media error is shared by
+          // every recipient; stop instead of repeating the same failing upload.
+          return Response.json({ error: lastTelegramError + " No broadcast was queued." }, { status: 502 });
         }
 
-        if (!telegramResult.ok || !telegramResult.result) {
-          return Response.json({ error: telegramResult.description ?? "Telegram rejected this media upload. No broadcast was queued." }, { status: 502 });
+        if (acceptedIndex < 0 || !fileId) {
+          return Response.json({ error: lastTelegramError + " Telegram did not accept this media for any available recipient." }, { status: 502 });
         }
-        const fileId = spec.mediaType === "video"
-          ? telegramResult.result.video?.file_id
-          : telegramResult.result.photo?.at(-1)?.file_id;
-        if (!fileId) return Response.json({ error: "Telegram accepted the message but did not return a reusable media ID." }, { status: 502 });
 
         const buttons = action ? [{ text: actionText || "OPEN", action }] : [];
         const { data: broadcast, error: broadcastError } = await db().from("broadcasts").insert({
@@ -94,7 +132,7 @@ export const Route = createFileRoute("/api/admin/broadcast-upload")({
           status: recipients.length > 1 ? "sending" : "done",
           total_count: recipients.length,
           sent_count: 1,
-          failed_count: 0,
+          failed_count: attemptedFailures.size,
           created_by: null,
           started_at: new Date().toISOString(),
           finished_at: recipients.length > 1 ? null : new Date().toISOString(),
@@ -109,12 +147,15 @@ export const Route = createFileRoute("/api/admin/broadcast-upload")({
         for (let i = 0; i < recipients.length; i += 500) {
           const recipientRows = recipients.slice(i, i + 500).map((recipient, offset) => {
             const index = i + offset;
+            const failed = attemptedFailures.get(index);
+            const status = index === acceptedIndex ? "sent" : failed?.status ?? "pending";
             return {
               broadcast_id: broadcast.id,
               user_id: recipient.user_id,
               telegram_id: recipient.telegram_id,
-              status: index === 0 ? "sent" : "pending",
-              ...(index === 0 ? { sent_at: sentAt } : {}),
+              status,
+              ...(index === acceptedIndex ? { sent_at: sentAt } : {}),
+              ...(failed ? { error: failed.error } : {}),
             };
           });
           const { error: recipientsError } = await db().from("broadcast_recipients").upsert(recipientRows, { onConflict: "broadcast_id,user_id" });
