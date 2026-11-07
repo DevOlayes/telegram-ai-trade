@@ -16,8 +16,10 @@ function constantTimeEqual(a: string, b: string) {
   return mismatch === 0;
 }
 function pbkdf2(password: string, salt: Uint8Array, iterations: number) {
+  const saltBuffer = new ArrayBuffer(salt.byteLength);
+  new Uint8Array(saltBuffer).set(salt);
   return crypto.subtle.importKey("raw", text.encode(password), "PBKDF2", false, ["deriveBits"]).then((key) =>
-    crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations }, key, 256),
+    crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: saltBuffer, iterations }, key, 256),
   ).then((derived) => toBase64Url(new Uint8Array(derived)));
 }
 async function config() {
