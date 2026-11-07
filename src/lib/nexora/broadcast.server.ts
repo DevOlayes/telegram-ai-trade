@@ -150,7 +150,7 @@ export async function createBroadcast(input: BroadcastInput) {
   if (error || !bc) throw new Error(error?.message ?? "Could not create broadcast");
 
   for (let i = 0; i < recipients.length; i += 500) {
-    await db()
+    const { error: recipientsError } = await db()
       .from("broadcast_recipients")
       .upsert(
         recipients.slice(i, i + 500).map((r) => ({
@@ -160,6 +160,14 @@ export async function createBroadcast(input: BroadcastInput) {
         })),
         { onConflict: "broadcast_id,user_id" },
       );
+    if (recipientsError) {
+      await db().from("broadcasts").update({
+        status: "failed",
+        failed_count: recipients.length,
+        finished_at: new Date().toISOString(),
+      }).eq("id", bc.id);
+      throw new Error(recipientsError.message ?? "Could not queue broadcast recipients");
+    }
   }
   return { id: bc.id as string, total: recipients.length };
 }
