@@ -173,6 +173,10 @@ function markup(buttons: BroadcastButton[]) {
 
 type SendResult = { ok: true } | { ok: false; error: string; blocked: boolean; retryAfter?: number };
 
+function isBlockedTelegramChat(errorCode: number | undefined, description: string | undefined) {
+  return errorCode === 403 && /bot was blocked by the user|user is deactivated|bot was kicked/i.test(description ?? "");
+}
+
 async function sendOne(
   chatId: number,
   bc: { body: string; media_url: string | null; media_type: string; buttons: BroadcastButton[] },
@@ -223,7 +227,7 @@ async function sendOne(
         return {
           ok: false,
           error: `Media failed (${json.description ?? "unknown"}); text fallback failed (${fallbackJson.description ?? "unknown"})`,
-          blocked: fallbackJson.error_code === 403,
+          blocked: isBlockedTelegramChat(fallbackJson.error_code, fallbackJson.description),
           ...(fallbackJson.parameters?.retry_after ? { retryAfter: fallbackJson.parameters.retry_after } : {}),
         };
       } catch (e) {
@@ -234,7 +238,7 @@ async function sendOne(
     return {
       ok: false,
       error: json.description ?? "unknown",
-      blocked: json.error_code === 403,
+      blocked: isBlockedTelegramChat(json.error_code, json.description),
       ...(json.parameters?.retry_after ? { retryAfter: json.parameters.retry_after } : {}),
     };
   } catch (e) {
