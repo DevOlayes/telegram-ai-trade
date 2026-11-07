@@ -578,7 +578,7 @@ function BroadcastTab() {
             Recipient preview
           </h2>
           <p className="mb-3 text-xs text-muted-foreground">
-            Showing the registered bot users included in the selected audience. Blocked accounts are excluded.
+            Showing the registered bot users included in the selected audience. Telegram chats that are genuinely unavailable are skipped.
           </p>
           {preview.data.users.length === 0 ? (
             <p className="text-sm text-muted-foreground">No registered users match this audience.</p>
@@ -655,7 +655,7 @@ function BroadcastChats({ broadcastId }: { broadcastId: string }) {
     <div className="mt-4">
       <p className="mb-2 text-xs text-muted-foreground">
         {rows.length} chat(s) · sent {count("sent")} · pending {count("pending")} · failed{" "}
-        {count("failed")} · blocked {count("blocked")}
+        {count("failed")} · unavailable {count("blocked")}
       </p>
       <Table head={["Chat ID", "Username", "Status", "Delivered at", "Error"]}>
         {rows.map((r) => (
@@ -673,7 +673,7 @@ function BroadcastChats({ broadcastId }: { broadcastId: string }) {
                   : r.status === "pending"
                     ? "pending"
                     : r.status === "blocked"
-                      ? "blocked bot"
+                      ? "unavailable"
                       : "failed"}
               </Badge>
             </Td>
